@@ -22,21 +22,21 @@ from email.message import EmailMessage
 
 import pytest
 
-from py_eas import FolderType
+from py_eas import Client, FolderType
 from py_eas.exceptions import StatusError
 
 
-def test_provision_returns_policy_key(live_client):
+def test_provision_returns_policy_key(live_client: Client) -> None:
     key = live_client.provision()
     assert key
 
 
-def test_list_folders_includes_inbox(live_client):
+def test_list_folders_includes_inbox(live_client: Client) -> None:
     folders = live_client.list_folders()
     assert any(f.type == FolderType.INBOX for f in folders)
 
 
-def test_sync_folder_bootstrap_then_delta(live_client):
+def test_sync_folder_bootstrap_then_delta(live_client: Client) -> None:
     inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
     bootstrap = live_client.sync_folder(inbox.id)
     assert bootstrap.sync_key != "0"
@@ -44,19 +44,19 @@ def test_sync_folder_bootstrap_then_delta(live_client):
     assert delta.sync_key
 
 
-def test_get_item_estimate(live_client):
+def test_get_item_estimate(live_client: Client) -> None:
     inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
     bootstrap = live_client.sync_folder(inbox.id)
     estimate = live_client.get_item_estimate(inbox.id, bootstrap.sync_key)
     assert estimate >= 0
 
 
-def test_resolve_recipients_self(live_client):
+def test_resolve_recipients_self(live_client: Client) -> None:
     recipients = live_client.resolve_recipients(live_client.user)
     assert isinstance(recipients, list)
 
 
-def test_folder_lifecycle_only_touches_its_own_folder(live_client, preexisting_folder_ids):
+def test_folder_lifecycle_only_touches_its_own_folder(live_client: Client, preexisting_folder_ids: set[str]) -> None:
     """FolderCreate -> FolderUpdate -> FolderDelete against a throwaway
     folder only; asserts the pre-existing folder set is untouched."""
     name = f"py-eas-test-{uuid.uuid4().hex[:8]}"
@@ -73,7 +73,7 @@ def test_folder_lifecycle_only_touches_its_own_folder(live_client, preexisting_f
     assert folder.id not in folders_after
 
 
-def test_send_mail_move_and_fetch_attachment(live_client, preexisting_folder_ids):
+def test_send_mail_move_and_fetch_attachment(live_client: Client, preexisting_folder_ids: set[str]) -> None:
     """SendMail -> locate via Sync -> Fetch body -> FolderCreate -> MoveItems
     -> Fetch attachment -> FolderDelete (cascades, cleans up the message
     too). Only ever touches the throwaway folder/message this test creates."""
@@ -120,7 +120,7 @@ def test_send_mail_move_and_fetch_attachment(live_client, preexisting_folder_ids
     assert preexisting_folder_ids <= folders_after
 
 
-def test_search_gal_for_self(live_client):
+def test_search_gal_for_self(live_client: Client) -> None:
     try:
         results = live_client.search_gal(live_client.user)
     except StatusError:
@@ -128,7 +128,7 @@ def test_search_gal_for_self(live_client):
     assert isinstance(results, list)
 
 
-def test_ping_returns_a_status(live_client):
+def test_ping_returns_a_status(live_client: Client) -> None:
     inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
     result = live_client.ping(inbox.id, timeout=10)
     assert result.status

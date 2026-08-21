@@ -97,7 +97,7 @@ reproduce the failure for every caller.
 pip install -e '.[dev]'
 pytest
 ruff check .
-mypy py_eas
+mypy py_eas tests
 ```
 
 Unit tests (WBXML codec against golden byte fixtures, codepage table

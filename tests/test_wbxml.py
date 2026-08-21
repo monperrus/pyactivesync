@@ -27,7 +27,7 @@ GOLDEN_SEARCH_REQUEST_HEX = (
 )
 
 
-def test_header_is_three_bytes_plus_string_table_length():
+def test_header_is_three_bytes_plus_string_table_length() -> None:
     w = WBXMLWriter()
     w.tag("Provision", "Provision")
     rendered = w.render()
@@ -35,7 +35,7 @@ def test_header_is_three_bytes_plus_string_table_length():
     assert rendered[3] == 0x00  # zero-length string table
 
 
-def test_simple_tag_roundtrip():
+def test_simple_tag_roundtrip() -> None:
     w = WBXMLWriter()
     w.tag("FolderHierarchy", "FolderSync", children=[wtag("FolderHierarchy", "SyncKey", text="0")])
     nodes = WBXMLReader(w.render()).parse()
@@ -44,7 +44,7 @@ def test_simple_tag_roundtrip():
     assert text_of(find(node[2], "FolderHierarchy.SyncKey")) == "0"
 
 
-def test_self_closing_tag_has_no_content_flag():
+def test_self_closing_tag_has_no_content_flag() -> None:
     w = WBXMLWriter()
     w.tag("Email", "DateReceived")  # empty element, as in a Search GreaterThan condition
     rendered = w.render()
@@ -53,7 +53,7 @@ def test_self_closing_tag_has_no_content_flag():
     assert token & 0x3F == 0x0F
 
 
-def test_switch_page_only_emitted_on_page_change():
+def test_switch_page_only_emitted_on_page_change() -> None:
     # Page 7 (FolderHierarchy) and text-free tags avoid ambiguity with the
     # 0x00 SWITCH_PAGE opcode showing up as a STR_I null terminator or as
     # page 0's own number byte.
@@ -69,7 +69,7 @@ def test_switch_page_only_emitted_on_page_change():
     assert body.count(bytes([SWITCH_PAGE])) == 1
 
 
-def test_opaque_binary_field_roundtrip():
+def test_opaque_binary_field_roundtrip() -> None:
     """OPAQUE fields (e.g. ComposeMail.MIME, binary GUIDs) must carry their
     own mb_uint length and not be misread as nested tag structure."""
     payload = bytes(range(256)) * 2  # forces a multi-byte mb_uint length
@@ -82,14 +82,14 @@ def test_opaque_binary_field_roundtrip():
     assert opaque_of(mime_node) == payload
 
 
-def test_mb_uint_multibyte_length_encoding():
+def test_mb_uint_multibyte_length_encoding() -> None:
     assert _mb_uint_bytes(0) == bytes([0x00])
     assert _mb_uint_bytes(127) == bytes([0x7F])
     assert _mb_uint_bytes(128) == bytes([0x81, 0x00])
     assert _mb_uint_bytes(300) == bytes([0x82, 0x2C])
 
 
-def test_leaves_flattens_nested_application_data():
+def test_leaves_flattens_nested_application_data() -> None:
     w = WBXMLWriter()
     w.tag(
         "AirSync",
@@ -106,7 +106,7 @@ def test_leaves_flattens_nested_application_data():
     assert flat == {"Email.Subject": "hello", "Email.Read": "1"}
 
 
-def test_golden_search_request_bytes():
+def test_golden_search_request_bytes() -> None:
     """Rebuild the exact request tree py_eas.client.Client.search_mailbox()
     sends and confirm it matches the byte-for-byte capture from a live,
     successful (Status=1) server exchange."""
@@ -150,7 +150,7 @@ def test_golden_search_request_bytes():
     assert w.render().hex() == GOLDEN_SEARCH_REQUEST_HEX
 
 
-def test_str_i_and_end_bytes_present_in_rendered_output():
+def test_str_i_and_end_bytes_present_in_rendered_output() -> None:
     w = WBXMLWriter()
     w.tag("Email", "Subject", text="x")
     rendered = w.render()

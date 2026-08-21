@@ -17,5 +17,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e '.[dev]'
       - run: ruff check .
-      - run: mypy py_eas
+      - run: mypy py_eas tests
       - run: pytest --cov=py_eas --cov-report=term-missing

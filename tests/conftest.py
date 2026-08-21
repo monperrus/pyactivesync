@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 
 import pytest
 
@@ -14,7 +15,7 @@ def _missing_env_vars() -> list[str]:
 
 
 @pytest.fixture(scope="session")
-def live_client():
+def live_client() -> Iterator[Client]:
     missing = _missing_env_vars()
     if missing:
         pytest.skip(f"live server not configured: {', '.join(missing)} not set")
@@ -29,7 +30,7 @@ def live_client():
 
 
 @pytest.fixture(scope="session")
-def preexisting_folder_ids(live_client):
+def preexisting_folder_ids(live_client: Client) -> set[str]:
     """The folder ids that existed before this test session -- asserted
     unchanged at session end so live tests never leak state into a real
     mailbox."""

@@ -23,6 +23,7 @@ from .models import (
 
 _PROVISION_STATUS_MEANINGS = {"165": "DeviceInformationRequired"}
 _SENDMAIL_STATUS_MEANINGS = {"101": "InvalidContent"}
+_MOVEITEMS_STATUS_MEANINGS = {"1": "InvalidSourceId", "2": "InvalidDestinationId"}
 
 
 def _check_status(command: str, status: str | None, meanings: dict[str, str] | None = None) -> None:
@@ -442,7 +443,8 @@ class Client:
         resp = self._post("MoveItems", w.render())
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "Move.Status"))
-        _check_status("MoveItems", status)
+        if status is not None and status != "3":
+            raise StatusError("MoveItems", status, _MOVEITEMS_STATUS_MEANINGS.get(status))
         new_id = text_of(find(nodes, "Move.DstMsgId"))
         if not new_id:
             raise ProtocolError("MoveItems: no DstMsgId in response")

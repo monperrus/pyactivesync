@@ -93,9 +93,17 @@ class Client:
         self._transport.close()
 
     def _post(
-        self, cmd: str, wbxml: bytes, *, extra_params: dict[str, str] | None = None, timeout: float | None = None
+        self,
+        cmd: str,
+        wbxml: bytes,
+        *,
+        extra_params: dict[str, str] | None = None,
+        timeout: float | None = None,
+        idempotent: bool = False,
     ) -> bytes:
-        return self._transport.post(cmd, self.user, wbxml, extra_params=extra_params, timeout=timeout)
+        return self._transport.post(
+            cmd, self.user, wbxml, extra_params=extra_params, timeout=timeout, idempotent=idempotent
+        )
 
     def _ensure_provisioned(self) -> None:
         if not self._provisioned:
@@ -189,7 +197,7 @@ class Client:
         self._ensure_provisioned()
         w = WBXMLWriter()
         w.tag("FolderHierarchy", "FolderSync", children=[wtag("FolderHierarchy", "SyncKey", text="0")])
-        resp = self._post("FolderSync", w.render())
+        resp = self._post("FolderSync", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "FolderHierarchy.Status"))
         _check_status("FolderSync", status)
@@ -208,7 +216,7 @@ class Client:
         """Bootstrap ``SyncKey`` for a mutating FolderHierarchy command."""
         w = WBXMLWriter()
         w.tag("FolderHierarchy", "FolderSync", children=[wtag("FolderHierarchy", "SyncKey", text="0")])
-        resp = self._post("FolderSync", w.render())
+        resp = self._post("FolderSync", w.render(), idempotent=True)
         key = text_of(find(WBXMLReader(resp).parse(), "FolderHierarchy.SyncKey"))
         if not key:
             raise ProtocolError("FolderSync: no SyncKey in response")
@@ -310,7 +318,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("Sync", w.render())
+        resp = self._post("Sync", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "AirSync.Status"))
         _check_status("Sync", status)
@@ -358,7 +366,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("GetItemEstimate", w.render())
+        resp = self._post("GetItemEstimate", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "ItemEstimate.Status"))
         _check_status("GetItemEstimate", status)
@@ -399,7 +407,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("ItemOperations", w.render())
+        resp = self._post("ItemOperations", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "ItemOperations.Status"))
         _check_status("ItemOperations", status)
@@ -424,7 +432,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("ItemOperations", w.render())
+        resp = self._post("ItemOperations", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "ItemOperations.Status"))
         _check_status("ItemOperations", status)
@@ -515,7 +523,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("Ping", w.render(), timeout=timeout)
+        resp = self._post("Ping", w.render(), timeout=timeout, idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "Ping.Status")) or ""
         changed = [
@@ -530,7 +538,7 @@ class Client:
         self._ensure_provisioned()
         w = WBXMLWriter()
         w.tag("ResolveRecipients", "ResolveRecipients", children=[wtag("ResolveRecipients", "To", text=address)])
-        resp = self._post("ResolveRecipients", w.render())
+        resp = self._post("ResolveRecipients", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "ResolveRecipients.Status"))
         _check_status("ResolveRecipients", status)
@@ -565,7 +573,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("Search", w.render())
+        resp = self._post("Search", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "Search.Status"))
         _check_status("Search", status)
@@ -647,7 +655,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("Search", w.render())
+        resp = self._post("Search", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "Search.Status"))
         _check_status("Search", status)
@@ -675,7 +683,7 @@ class Client:
                 ),
             ],
         )
-        resp = self._post("Settings", w.render())
+        resp = self._post("Settings", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
         _check_status("Settings", text_of(find(nodes, "Settings.Status")))
         oof = find(nodes, "Settings.Oof")

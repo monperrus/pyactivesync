@@ -1,11 +1,13 @@
 """Thin HTTP transport for EAS: one ``requests.Session``, auth + headers + retries."""
 from __future__ import annotations
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import time
 
-_RETRYABLE_STATUS = (500, 502, 503, 504)
+import requests
+
+_RETRYABLE_STATUS = frozenset({500, 502, 503, 504})
+_RETRY_TOTAL = 3
+_RETRY_BACKOFF_FACTOR = 0.5
 
 
 class Transport:
@@ -33,15 +35,6 @@ class Transport:
         self.session = requests.Session()
         self.session.auth = (username, password)
         self.session.verify = verify_ssl
-        retry = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=_RETRYABLE_STATUS,
-            allowed_methods=frozenset({"POST"}),
-        )
-        adapter = HTTPAdapter(max_retries=retry)
-        self.session.mount("https://", adapter)
-        self.session.mount("http://", adapter)
 
     def post(
         self,
@@ -51,7 +44,15 @@ class Transport:
         *,
         extra_params: dict[str, str] | None = None,
         timeout: float | None = None,
+        idempotent: bool = False,
     ) -> bytes:
+        """POST one command. ``idempotent`` must only be set for commands with no
+        side effect that could be duplicated by a blind resend (e.g. ``Sync``,
+        ``FolderSync``, ``ItemOperations`` Fetch) -- a 5xx can happen *after* the
+        server already durably processed a mutating command (``SendMail``,
+        ``FolderCreate``, ``MoveItems``, a ``Settings`` Set, ...), and retrying
+        those would resend the identical body and risk duplicating the effect.
+        """
         params = {
             "Cmd": cmd,
             "User": user,
@@ -66,15 +67,23 @@ class Transport:
         }
         if self.policy_key:
             headers["X-MS-PolicyKey"] = self.policy_key
-        resp = self.session.post(
-            self.base_url,
-            params=params,
-            data=wbxml,
-            headers=headers,
-            timeout=timeout if timeout is not None else self.timeout,
-        )
-        resp.raise_for_status()
-        return resp.content
+        effective_timeout = timeout if timeout is not None else self.timeout
+
+        attempts = _RETRY_TOTAL + 1 if idempotent else 1
+        for attempt in range(attempts):
+            resp = self.session.post(
+                self.base_url,
+                params=params,
+                data=wbxml,
+                headers=headers,
+                timeout=effective_timeout,
+            )
+            if resp.status_code in _RETRYABLE_STATUS and attempt < attempts - 1:
+                time.sleep(_RETRY_BACKOFF_FACTOR * (2**attempt))
+                continue
+            resp.raise_for_status()
+            return resp.content
+        raise AssertionError("unreachable")
 
     def close(self) -> None:
         self.session.close()

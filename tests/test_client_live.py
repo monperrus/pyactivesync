@@ -1,16 +1,16 @@
 """Integration tests against a real EAS server.
 
-Skipped (not failed) unless PY_EAS_TEST_SERVER / PY_EAS_TEST_USER /
-PY_EAS_TEST_PASSWORD are set, so `pytest` stays green on a plain checkout
+Skipped (not failed) unless PYACTIVESYNC_TEST_SERVER / PYACTIVESYNC_TEST_USER /
+PYACTIVESYNC_TEST_PASSWORD are set, so `pytest` stays green on a plain checkout
 and in default CI. Run manually against a real account before a release:
 
-    PY_EAS_TEST_SERVER=mail.example.com \\
-    PY_EAS_TEST_USER='CORP\\jdoe' \\
-    PY_EAS_TEST_PASSWORD=... \\
+    PYACTIVESYNC_TEST_SERVER=mail.example.com \\
+    PYACTIVESYNC_TEST_USER='CORP\\jdoe' \\
+    PYACTIVESYNC_TEST_PASSWORD=... \\
     pytest tests/test_client_live.py
 
 Mutating tests only ever create/rename/delete objects prefixed
-`py-eas-test-` that they create themselves; a session-scoped fixture
+`pyactivesync-test-` that they create themselves; a session-scoped fixture
 (`preexisting_folder_ids`) asserts the pre-existing folder set is
 unchanged at the end of the run.
 """
@@ -22,8 +22,8 @@ from email.message import EmailMessage
 
 import pytest
 
-from py_eas import Client, FolderType
-from py_eas.exceptions import StatusError
+from pyactivesync import Client, FolderType
+from pyactivesync.exceptions import StatusError
 
 
 def test_provision_returns_policy_key(live_client: Client) -> None:
@@ -59,7 +59,7 @@ def test_resolve_recipients_self(live_client: Client) -> None:
 def test_folder_lifecycle_only_touches_its_own_folder(live_client: Client, preexisting_folder_ids: set[str]) -> None:
     """FolderCreate -> FolderUpdate -> FolderDelete against a throwaway
     folder only; asserts the pre-existing folder set is untouched."""
-    name = f"py-eas-test-{uuid.uuid4().hex[:8]}"
+    name = f"pyactivesync-test-{uuid.uuid4().hex[:8]}"
     folder = live_client.create_folder(name, parent_id="0", type=FolderType.USER_GENERIC)
     assert folder.id not in preexisting_folder_ids
 
@@ -78,13 +78,13 @@ def test_send_mail_move_and_fetch_attachment(live_client: Client, preexisting_fo
     -> Fetch attachment -> FolderDelete (cascades, cleans up the message
     too). Only ever touches the throwaway folder/message this test creates."""
     inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
-    marker = f"py-eas-test-{uuid.uuid4().hex[:8]}"
+    marker = f"pyactivesync-test-{uuid.uuid4().hex[:8]}"
 
     msg = EmailMessage()
     msg["To"] = live_client.user
     msg["Subject"] = marker
-    msg.set_content("throwaway message for py-eas integration tests")
-    msg.add_attachment(b"hello from py-eas", maintype="application", subtype="octet-stream", filename="test.txt")
+    msg.set_content("throwaway message for pyactivesync integration tests")
+    msg.add_attachment(b"hello from pyactivesync", maintype="application", subtype="octet-stream", filename="test.txt")
     live_client.send_mail(msg)
 
     item_id = None
@@ -102,7 +102,7 @@ def test_send_mail_move_and_fetch_attachment(live_client: Client, preexisting_fo
     body = live_client.fetch_item(inbox.id, item_id)
     assert body
 
-    folder_name = f"py-eas-test-{uuid.uuid4().hex[:8]}"
+    folder_name = f"pyactivesync-test-{uuid.uuid4().hex[:8]}"
     test_folder = live_client.create_folder(folder_name, parent_id="0", type=FolderType.USER_GENERIC)
     assert test_folder.id not in preexisting_folder_ids
 
@@ -113,7 +113,7 @@ def test_send_mail_move_and_fetch_attachment(live_client: Client, preexisting_fo
     file_ref = props.get("AirSyncBase.FileReference")
     if file_ref:
         data = live_client.fetch_attachment(file_ref)
-        assert data == b"hello from py-eas"
+        assert data == b"hello from pyactivesync"
 
     live_client.delete_folder(test_folder.id)
     folders_after = {f.id for f in live_client.list_folders()}

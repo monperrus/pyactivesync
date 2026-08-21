@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from py_eas.models import BodyType, Folder, FolderType, SyncItem, SyncResult
+from pyactivesync.models import BodyType, Folder, FolderType, SyncItem, SyncResult
 
 
 def test_folder_type_values_match_spec() -> None:

@@ -1,4 +1,4 @@
-"""py-eas: a Python client for Exchange ActiveSync (EAS / MS-ASCMD / MS-ASWBXML)."""
+"""pyactivesync: a Python client for Exchange ActiveSync (EAS / MS-ASCMD / MS-ASWBXML)."""
 from __future__ import annotations
 
 from .client import Client

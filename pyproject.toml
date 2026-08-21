@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "py-eas"
+name = "pyactivesync"
 version = "0.1.0"
 description = "A Python client for Exchange ActiveSync (EAS / MS-ASCMD / MS-ASWBXML)"
 readme = "README.md"
@@ -37,15 +37,15 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/monperrus/py-eas"
-Repository = "https://github.com/monperrus/py-eas"
-Issues = "https://github.com/monperrus/py-eas/issues"
+Homepage = "https://github.com/monperrus/pyactivesync"
+Repository = "https://github.com/monperrus/pyactivesync"
+Issues = "https://github.com/monperrus/pyactivesync/issues"
 
 [project.scripts]
-py-eas = "py_eas.cli:main"
+pyactivesync = "pyactivesync.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["py_eas"]
+packages = ["pyactivesync"]
 
 [tool.ruff]
 line-length = 120
@@ -62,4 +62,4 @@ strict = true
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["py_eas"]
+source = ["pyactivesync"]

@@ -4,7 +4,7 @@ server (a mailbox-scope structured ``Search`` that returned ``Status=1``,
 ``Total=96``)."""
 from __future__ import annotations
 
-from py_eas._wbxml import (
+from pyactivesync._wbxml import (
     STR_I,
     SWITCH_PAGE,
     WBXMLReader,
@@ -107,7 +107,7 @@ def test_leaves_flattens_nested_application_data() -> None:
 
 
 def test_golden_search_request_bytes() -> None:
-    """Rebuild the exact request tree py_eas.client.Client.search_mailbox()
+    """Rebuild the exact request tree pyactivesync.client.Client.search_mailbox()
     sends and confirm it matches the byte-for-byte capture from a live,
     successful (Status=1) server exchange."""
     w = WBXMLWriter()

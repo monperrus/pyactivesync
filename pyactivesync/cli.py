@@ -1,4 +1,4 @@
-"""``py-eas`` console script: list-folders, sync, send, fetch, ping."""
+"""``pyactivesync`` console script: list-folders, sync, send, fetch, ping."""
 from __future__ import annotations
 
 import argparse
@@ -14,9 +14,9 @@ from .models import BodyType
 
 
 def _client_from_args(args: argparse.Namespace) -> Client:
-    password = args.password or os.environ.get("PY_EAS_PASSWORD")
+    password = args.password or os.environ.get("PYACTIVESYNC_PASSWORD")
     if not password:
-        raise SystemExit("no password: pass --password or set PY_EAS_PASSWORD")
+        raise SystemExit("no password: pass --password or set PYACTIVESYNC_PASSWORD")
     return Client(
         args.server,
         args.username,
@@ -45,8 +45,8 @@ def _add_common_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--server", required=True, help="EAS server hostname")
     p.add_argument("--username", required=True, help="auth username (domain\\user or email)")
     p.add_argument("--user", help="mailbox SMTP address for the User param (defaults to --username)")
-    p.add_argument("--password", help="password (falls back to PY_EAS_PASSWORD env var)")
-    p.add_argument("--device-id", default="py-eas-cli", help="device id (default: py-eas-cli)")
+    p.add_argument("--password", help="password (falls back to PYACTIVESYNC_PASSWORD env var)")
+    p.add_argument("--device-id", default="pyactivesync-cli", help="device id (default: pyactivesync-cli)")
     p.add_argument("--json", action="store_true", help="output JSON instead of a table")
 
 
@@ -101,7 +101,7 @@ def cmd_ping(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="py-eas", description="Exchange ActiveSync client CLI")
+    parser = argparse.ArgumentParser(prog="pyactivesync", description="Exchange ActiveSync client CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("list-folders", help="list the folder hierarchy")

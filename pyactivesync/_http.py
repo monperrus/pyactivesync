@@ -18,7 +18,7 @@ class Transport:
         password: str,
         *,
         device_id: str,
-        device_type: str = "py-eas",
+        device_type: str = "pyactivesync",
         protocol_version: str = "14.1",
         verify_ssl: bool = True,
         timeout: float = 30.0,

@@ -1,4 +1,4 @@
-"""Public data types returned by :class:`py_eas.client.Client`."""
+"""Public data types returned by :class:`pyactivesync.client.Client`."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

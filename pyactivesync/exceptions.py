@@ -1,9 +1,9 @@
-"""Exception hierarchy for py-eas."""
+"""Exception hierarchy for pyactivesync."""
 from __future__ import annotations
 
 
 class EASError(Exception):
-    """Base class for all py-eas errors."""
+    """Base class for all pyactivesync errors."""
 
 
 class ProtocolError(EASError):

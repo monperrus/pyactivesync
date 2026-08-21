@@ -5,9 +5,9 @@ from collections.abc import Iterator
 
 import pytest
 
-from py_eas import Client
+from pyactivesync import Client
 
-_ENV_VARS = ("PY_EAS_TEST_SERVER", "PY_EAS_TEST_USER", "PY_EAS_TEST_PASSWORD")
+_ENV_VARS = ("PYACTIVESYNC_TEST_SERVER", "PYACTIVESYNC_TEST_USER", "PYACTIVESYNC_TEST_PASSWORD")
 
 
 def _missing_env_vars() -> list[str]:
@@ -20,11 +20,11 @@ def live_client() -> Iterator[Client]:
     if missing:
         pytest.skip(f"live server not configured: {', '.join(missing)} not set")
     with Client(
-        server=os.environ["PY_EAS_TEST_SERVER"],
-        username=os.environ["PY_EAS_TEST_USER"],
-        password=os.environ["PY_EAS_TEST_PASSWORD"],
-        device_id=os.environ.get("PY_EAS_TEST_DEVICE_ID", "py-eas-pytest"),
-        user=os.environ.get("PY_EAS_TEST_SMTP_USER"),
+        server=os.environ["PYACTIVESYNC_TEST_SERVER"],
+        username=os.environ["PYACTIVESYNC_TEST_USER"],
+        password=os.environ["PYACTIVESYNC_TEST_PASSWORD"],
+        device_id=os.environ.get("PYACTIVESYNC_TEST_DEVICE_ID", "pyactivesync-pytest"),
+        user=os.environ.get("PYACTIVESYNC_TEST_SMTP_USER"),
     ) as client:
         yield client
 

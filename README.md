@@ -1,4 +1,4 @@
-# py-eas
+# pyactivesync
 
 A Python client library for Exchange ActiveSync (EAS), implementing
 enough of [MS-ASCMD] (the command protocol) and [MS-ASWBXML] (the binary
@@ -12,21 +12,21 @@ items, directory search, and push notifications via `Ping`.
 ## Install
 
 ```
-pip install py-eas
+pip install pyactivesync
 ```
 
 ## Usage
 
 ```python
 from email.message import EmailMessage
-from py_eas import Client, FolderType, BodyType
+from pyactivesync import Client, FolderType, BodyType
 
 with Client(
     server="mail.example.com",
     username=r"CORP\jdoe",       # NTLM-style domain\user, or a plain email -- both work
     password="...",
     device_id="MyApp01",          # caller-provided; persist it yourself for a stable
-                                    # device identity across runs -- py-eas doesn't
+                                    # device identity across runs -- pyactivesync doesn't
                                     # persist anything to disk on its own
 ) as client:
     folders = client.list_folders()
@@ -41,7 +41,7 @@ with Client(
 
     msg = EmailMessage()
     msg["To"] = "someone@example.com"
-    msg["Subject"] = "hello from py-eas"
+    msg["Subject"] = "hello from pyactivesync"
     msg.set_content("plain text body")
     client.send_mail(msg)
 ```
@@ -97,13 +97,13 @@ reproduce the failure for every caller.
 pip install -e '.[dev]'
 pytest
 ruff check .
-mypy py_eas tests
+mypy pyactivesync tests
 ```
 
 Unit tests (WBXML codec against golden byte fixtures, codepage table
 sanity checks) require no network and run in CI on every push. Live
 integration tests in `tests/test_client_live.py` are skipped unless
-`PY_EAS_TEST_SERVER`, `PY_EAS_TEST_USER`, and `PY_EAS_TEST_PASSWORD` are
+`PYACTIVESYNC_TEST_SERVER`, `PYACTIVESYNC_TEST_USER`, and `PYACTIVESYNC_TEST_PASSWORD` are
 set, and only ever create/rename/delete objects they create themselves --
 pre-existing folders and items are never touched.
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from py_eas._codepages import CODEPAGES, PAGE_INDEX, PAGE_ORDER, REVERSE
+from pyactivesync._codepages import CODEPAGES, PAGE_INDEX, PAGE_ORDER, REVERSE
 
 # Real MS-ASWBXML codepage numbers, per the spec index -- pinned here so a
 # future edit to _codepages.py can't silently drift from the protocol.

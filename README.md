@@ -73,6 +73,7 @@ sync with a local cache.
 | `ResolveRecipients` | `Client.resolve_recipients()` |
 | `Search` (GAL) | `Client.search_gal()` |
 | `Search` (Mailbox, structured) | `Client.search_mailbox()` |
+| `Settings` (Oof get/set) | `Client.get_oof()`/`set_oof()` |
 
 **Not implemented**: `MeetingResponse`, `ValidateCert`, `SmartForward`/`SmartReply`.
 Documented as unimplemented, not silently missing.

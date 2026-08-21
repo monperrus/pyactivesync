@@ -22,7 +22,7 @@ from email.message import EmailMessage
 
 import pytest
 
-from pyactivesync import Client, FolderType
+from pyactivesync import Client, FolderType, OofState
 from pyactivesync.exceptions import StatusError
 
 
@@ -132,3 +132,11 @@ def test_ping_returns_a_status(live_client: Client) -> None:
     inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
     result = live_client.ping(inbox.id, timeout=10)
     assert result.status
+
+
+def test_get_oof_returns_current_state(live_client: Client) -> None:
+    try:
+        oof = live_client.get_oof()
+    except StatusError:
+        pytest.skip("Settings/Oof not supported/enabled on this server")
+    assert isinstance(oof.state, OofState)

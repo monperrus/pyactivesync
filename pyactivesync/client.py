@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import uuid
+from collections.abc import Iterable
 from email.message import Message
 from types import TracebackType
 
@@ -15,11 +16,20 @@ from .models import (
     Folder,
     FolderType,
     GalEntry,
+    OofMessage,
+    OofSettings,
+    OofState,
     PingResult,
     Recipient,
     SyncItem,
     SyncResult,
 )
+
+_OOF_APPLIES_TO_TAGS = {
+    "Internal": "AppliesToInternal",
+    "ExternalKnown": "AppliesToExternalKnown",
+    "ExternalUnknown": "AppliesToExternalUnknown",
+}
 
 _PROVISION_STATUS_MEANINGS = {"165": "DeviceInformationRequired"}
 _SENDMAIL_STATUS_MEANINGS = {"101": "InvalidContent"}
@@ -642,3 +652,109 @@ class Client:
         status = text_of(find(nodes, "Search.Status"))
         _check_status("Search", status)
         return [leaves(children) for _, _, children in find_all(nodes, "Search.Result")]
+
+    # -- Settings ------------------------------------------------------------------
+
+    def get_oof(self) -> OofSettings:
+        """``Settings`` Oof Get: current Out-of-Office autoreply configuration.
+
+        Request shape verified against a real Exchange server; the response
+        parsing below follows the MS-ASCMD schema but hasn't itself been
+        cross-checked against a live response.
+        """
+        self._ensure_provisioned()
+        w = WBXMLWriter()
+        w.tag(
+            "Settings",
+            "Settings",
+            children=[
+                wtag(
+                    "Settings",
+                    "Oof",
+                    children=[wtag("Settings", "Get", children=[wtag("Settings", "BodyType", text="Text")])],
+                ),
+            ],
+        )
+        resp = self._post("Settings", w.render())
+        nodes = WBXMLReader(resp).parse()
+        _check_status("Settings", text_of(find(nodes, "Settings.Status")))
+        oof = find(nodes, "Settings.Oof")
+        if oof is None:
+            raise ProtocolError("Settings: no Oof in Get response")
+        _check_status("Settings.Oof", text_of(find(oof[2], "Settings.Status")))
+        get = find(oof[2], "Settings.Get")
+        if get is None:
+            raise ProtocolError("Settings: no Oof.Get in response")
+        state = text_of(find(get[2], "Settings.OofState"))
+        messages = [self._oof_message(children) for _, _, children in find_all(get[2], "Settings.OofMessage")]
+        return OofSettings(
+            state=OofState(int(state)) if state is not None else OofState.DISABLED,
+            start_time=text_of(find(get[2], "Settings.StartTime")),
+            end_time=text_of(find(get[2], "Settings.EndTime")),
+            messages=messages,
+        )
+
+    @staticmethod
+    def _oof_message(children: list[Node]) -> OofMessage:
+        applies_to = next(
+            (scope for scope, tag in _OOF_APPLIES_TO_TAGS.items() if find(children, f"Settings.{tag}") is not None),
+            "",
+        )
+        return OofMessage(
+            applies_to=applies_to,
+            enabled=text_of(find(children, "Settings.Enabled")) == "1",
+            reply_message=text_of(find(children, "Settings.ReplyMessage")),
+            body_type=text_of(find(children, "Settings.BodyType")),
+        )
+
+    def set_oof(
+        self,
+        state: OofState,
+        *,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        reply_message: str | None = None,
+        body_type: str = "Text",
+        applies_to: Iterable[str] = ("Internal", "ExternalKnown", "ExternalUnknown"),
+    ) -> None:
+        """``Settings`` Oof Set: enable/disable/schedule the Out-of-Office autoreply.
+
+        ``start_time``/``end_time`` only apply with ``state=OofState.ENABLED_SCHEDULED``.
+        If ``reply_message`` is given, it's sent identically as one
+        ``OofMessage`` block per scope in ``applies_to`` -- EAS has no
+        single "same message everywhere" shortcut. Unverified against a
+        live server; see ``get_oof()``.
+        """
+        self._ensure_provisioned()
+        set_children = [wtag("Settings", "OofState", text=str(int(state)))]
+        if state == OofState.ENABLED_SCHEDULED:
+            if start_time:
+                set_children.append(wtag("Settings", "StartTime", text=start_time))
+            if end_time:
+                set_children.append(wtag("Settings", "EndTime", text=end_time))
+        if reply_message is not None:
+            for scope in applies_to:
+                set_children.append(
+                    wtag(
+                        "Settings",
+                        "OofMessage",
+                        children=[
+                            wtag("Settings", _OOF_APPLIES_TO_TAGS[scope]),
+                            wtag("Settings", "Enabled", text="1"),
+                            wtag("Settings", "ReplyMessage", text=reply_message),
+                            wtag("Settings", "BodyType", text=body_type),
+                        ],
+                    ),
+                )
+        w = WBXMLWriter()
+        w.tag(
+            "Settings",
+            "Settings",
+            children=[wtag("Settings", "Oof", children=[wtag("Settings", "Set", children=set_children)])],
+        )
+        resp = self._post("Settings", w.render())
+        nodes = WBXMLReader(resp).parse()
+        _check_status("Settings", text_of(find(nodes, "Settings.Status")))
+        oof = find(nodes, "Settings.Oof")
+        if oof is not None:
+            _check_status("Settings.Oof", text_of(find(oof[2], "Settings.Status")))

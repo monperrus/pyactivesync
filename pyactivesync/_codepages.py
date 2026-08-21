@@ -61,7 +61,10 @@ CODEPAGES: dict[str, dict[str, int]] = {
     },
     "Settings": {
         "Settings": 0x05, "Status": 0x06, "Get": 0x07, "Set": 0x08,
-        "Oof": 0x09, "OofState": 0x0A, "BodyType": 0x13,
+        "Oof": 0x09, "OofState": 0x0A, "StartTime": 0x0B, "EndTime": 0x0C,
+        "OofMessage": 0x0D, "AppliesToInternal": 0x0E, "AppliesToExternalKnown": 0x0F,
+        "AppliesToExternalUnknown": 0x10, "Enabled": 0x11, "ReplyMessage": 0x12,
+        "BodyType": 0x13,
         "DeviceInformation": 0x16, "Model": 0x17, "IMEI": 0x18,
         "FriendlyName": 0x19, "OS": 0x1A, "OSLanguage": 0x1B,
         "PhoneNumber": 0x1C, "UserAgent": 0x20,

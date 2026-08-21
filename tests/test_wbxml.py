@@ -156,3 +156,47 @@ def test_str_i_and_end_bytes_present_in_rendered_output() -> None:
     rendered = w.render()
     assert STR_I in rendered
     assert rendered[-1] == 0x01  # END closes the tag with content
+
+
+def test_settings_oof_get_request_roundtrip() -> None:
+    """Same request tree as Client.get_oof(), matching the shape verified
+    against a real Exchange server in github.com/monperrus/pyactivesync/issues/2."""
+    w = WBXMLWriter()
+    w.tag(
+        "Settings",
+        "Settings",
+        children=[
+            wtag(
+                "Settings",
+                "Oof",
+                children=[wtag("Settings", "Get", children=[wtag("Settings", "BodyType", text="Text")])],
+            ),
+        ],
+    )
+    nodes = WBXMLReader(w.render()).parse()
+    oof = find(nodes, "Settings.Oof")
+    assert oof is not None
+    get = find(oof[2], "Settings.Get")
+    assert get is not None
+    assert text_of(find(get[2], "Settings.BodyType")) == "Text"
+
+
+def test_settings_oof_message_roundtrip() -> None:
+    """Shape of one Get-response OofMessage block that Client._oof_message() parses."""
+    w = WBXMLWriter()
+    w.tag(
+        "Settings",
+        "OofMessage",
+        children=[
+            wtag("Settings", "AppliesToInternal"),
+            wtag("Settings", "Enabled", text="1"),
+            wtag("Settings", "ReplyMessage", text="back Monday"),
+            wtag("Settings", "BodyType", text="Text"),
+        ],
+    )
+    nodes = WBXMLReader(w.render()).parse()
+    msg = find(nodes, "Settings.OofMessage")
+    assert msg is not None
+    assert find(msg[2], "Settings.AppliesToInternal") is not None
+    assert text_of(find(msg[2], "Settings.Enabled")) == "1"
+    assert text_of(find(msg[2], "Settings.ReplyMessage")) == "back Monday"

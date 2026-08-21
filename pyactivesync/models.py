@@ -39,6 +39,14 @@ class BodyType(IntEnum):
     MIME = 4
 
 
+class OofState(IntEnum):
+    """MS-ASCMD ``Settings:Oof:OofState`` values."""
+
+    DISABLED = 0
+    ENABLED = 1
+    ENABLED_SCHEDULED = 2
+
+
 @dataclass(frozen=True, slots=True)
 class Folder:
     id: str
@@ -110,3 +118,26 @@ class Recipient:
 class PingResult:
     status: str
     changed_folder_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class OofMessage:
+    """One scope of an Out-of-Office autoreply (``Settings:Oof:OofMessage``).
+
+    ``applies_to`` is one of ``"Internal"``, ``"ExternalKnown"``,
+    ``"ExternalUnknown"``, mirroring which of the three
+    ``AppliesTo*`` marker tags was present.
+    """
+
+    applies_to: str
+    enabled: bool
+    reply_message: str | None = None
+    body_type: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OofSettings:
+    state: OofState
+    start_time: str | None = None
+    end_time: str | None = None
+    messages: list[OofMessage] = field(default_factory=list)

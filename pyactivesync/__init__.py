@@ -6,6 +6,7 @@ from .exceptions import EASError, ProtocolError, ProvisionError, StatusError
 from .models import (
     AttachmentInfo,
     BodyType,
+    EmailAddResult,
     EmailChange,
     EmailChangesResult,
     FindItem,
@@ -32,6 +33,7 @@ __all__ = [
     "StatusError",
     "AttachmentInfo",
     "BodyType",
+    "EmailAddResult",
     "EmailChange",
     "EmailChangesResult",
     "FindItem",

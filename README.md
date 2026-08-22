@@ -38,6 +38,7 @@ with Client(
 ) as client:
     folders = client.list_folders()
     inbox = next(f for f in folders if f.type == FolderType.INBOX)
+    drafts = next(f for f in folders if f.type == FolderType.DRAFTS)
 
     result = client.sync_folder(inbox.id)                              # bootstrap
     result = client.sync_folder(inbox.id, sync_key=result.sync_key)     # Add/Change/Delete
@@ -59,6 +60,12 @@ with Client(
     msg["Subject"] = "hello from pyactivesync"
     msg.set_content("plain text body")
     client.send_mail(msg)
+
+    # Sync Add is EAS 16.1's draft-creation operation. It consumes the
+    # Drafts collection's current SyncKey and returns the next key + ServerId.
+    draft_sync = client.sync_folder(drafts.id)
+    created = client.create_email_draft(drafts.id, draft_sync.sync_key, msg)
+    assert created.status == "1" and created.server_id
 ```
 
 Use `read=False` to mark an item unread, `flagged=False` to clear its
@@ -83,6 +90,7 @@ sync with a local cache.
 | `Provision` | `Client.provision()` (also called lazily) |
 | `FolderSync` | `Client.list_folders()` |
 | `Sync` | `Client.sync_folder()` |
+| `Sync` Add | `Client.create_email_draft()` (draft email only) |
 | `Sync` item mutation | `Client.apply_email_changes()` (read/flag/delete) |
 | `GetItemEstimate` | `Client.get_item_estimate()` |
 | `ItemOperations` Fetch (body) | `Client.fetch_item()` |
@@ -105,6 +113,16 @@ directly); Calendar/Contacts *write* operations (read via `Sync` is
 supported); NTLM auth (Basic auth only -- `requests` doesn't do NTLM
 without an extra dependency); credential storage of any kind (that's the
 caller's business).
+
+EAS 16.1 supports client-originated `Sync` Add for draft email only.
+`create_email_draft()` therefore expects the Drafts collection and stores the
+stdlib message as a MIME body, including attachments. It does not provide an
+IMAP-style arbitrary-folder `APPEND`: Exchange reports item status `6` for a
+non-draft email addition. The result always includes the advanced collection
+`SyncKey`, the caller-supplied or generated `ClientId`, and the per-item
+status; successful additions also include the assigned `ServerId`.
+Live EAS 16.1 testing confirmed that Exchange accepts this MIME draft path,
+including attachment round-trips and read/follow-up flag state.
 
 `search_mailbox()` deliberately has no `free_text=` parameter: full-text
 `Search` conditions are known to fail against real Exchange servers with

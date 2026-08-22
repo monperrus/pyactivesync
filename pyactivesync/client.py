@@ -9,11 +9,12 @@ from email.message import Message
 from types import TracebackType
 
 from ._http import Transport
-from ._mime import to_crlf_bytes
+from ._mime import to_7bit_crlf_text, to_crlf_bytes
 from ._wbxml import Node, NodeBuilder, WBXMLReader, WBXMLWriter, find, find_all, leaves, text_of, wtag
 from .exceptions import ProtocolError, ProvisionError, StatusError
 from .models import (
     BodyType,
+    EmailAddResult,
     EmailChange,
     EmailChangesResult,
     FindItem,
@@ -478,6 +479,150 @@ class Client:
                 if server_id is not None and status is not None:
                     statuses[server_id] = status
         return EmailChangesResult(sync_key=new_sync_key, statuses=statuses)
+
+    def create_email_draft(
+        self,
+        folder_id: str,
+        sync_key: str,
+        message: Message,
+        *,
+        read: bool = False,
+        flagged: bool = False,
+        client_id: str | None = None,
+    ) -> EmailAddResult:
+        """Create one draft email through EAS 16.1 ``Sync Add``.
+
+        ``folder_id`` should identify the mailbox's Drafts folder and
+        ``sync_key`` must be its latest non-zero key.  EAS supports adding
+        email only as a draft; Exchange rejects non-draft additions with item
+        status ``"6"``.  The returned key must be used for the next operation
+        on this collection.
+
+        The complete stdlib message is stored as a MIME body, preserving its
+        headers, body alternatives, and attachments.  ``client_id`` is
+        generated when omitted and can be supplied by callers that need to
+        correlate an operation with durable local state.
+        """
+        if not folder_id:
+            raise ValueError("folder_id must not be empty")
+        if not sync_key or sync_key == "0":
+            raise ValueError("sync_key must be a non-zero synchronized key")
+        if not isinstance(message, Message):
+            raise TypeError("message must be an email.message.Message")
+        item_client_id = client_id if client_id is not None else uuid.uuid4().hex
+        if not item_client_id:
+            raise ValueError("client_id must not be empty")
+
+        application_data = [
+            wtag(
+                "AirSyncBase",
+                "Body",
+                children=[
+                    wtag("AirSyncBase", "Type", text=str(int(BodyType.MIME))),
+                    wtag("AirSyncBase", "Data", text=to_7bit_crlf_text(message)),
+                ],
+            ),
+            wtag("Email", "Read", text="1" if read else "0"),
+        ]
+        if flagged:
+            flag_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            application_data.append(
+                wtag(
+                    "Email",
+                    "Flag",
+                    children=[
+                        wtag("Email", "Status", text="2"),
+                        wtag("Email", "FlagType", text="Flag for follow up"),
+                        wtag("Tasks", "StartDate", text=flag_time),
+                        wtag("Tasks", "UtcStartDate", text=flag_time),
+                        wtag("Tasks", "DueDate", text=flag_time),
+                        wtag("Tasks", "UtcDueDate", text=flag_time),
+                    ],
+                )
+            )
+
+        self._ensure_provisioned()
+        w = WBXMLWriter()
+        w.tag(
+            "AirSync",
+            "Sync",
+            children=[
+                wtag(
+                    "AirSync",
+                    "Collections",
+                    children=[
+                        wtag(
+                            "AirSync",
+                            "Collection",
+                            children=[
+                                wtag("AirSync", "SyncKey", text=sync_key),
+                                wtag("AirSync", "CollectionId", text=folder_id),
+                                wtag("AirSync", "GetChanges", text="0"),
+                                wtag(
+                                    "AirSync",
+                                    "Commands",
+                                    children=[
+                                        wtag(
+                                            "AirSync",
+                                            "Add",
+                                            children=[
+                                                wtag("AirSync", "ClientId", text=item_client_id),
+                                                wtag(
+                                                    "AirSync",
+                                                    "ApplicationData",
+                                                    children=application_data,
+                                                ),
+                                            ],
+                                        )
+                                    ],
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ],
+        )
+        # Sync Add is non-idempotent: a transport failure can occur after the
+        # server created the draft, so the request must not be retried blindly.
+        resp = self._post("Sync", w.render())
+        nodes = WBXMLReader(resp).parse()
+        root = find(nodes, "AirSync.Sync")
+        if root is None:
+            raise ProtocolError("Sync Add: no Sync response")
+        _check_status("Sync", text_of(_direct_find(root[2], "AirSync.Status")))
+        collections = _direct_find(root[2], "AirSync.Collections")
+        collection = _direct_find(collections[2], "AirSync.Collection") if collections else None
+        if collection is None:
+            raise ProtocolError("Sync Add: no Collection in response")
+        _check_status("Sync", text_of(_direct_find(collection[2], "AirSync.Status")))
+        new_sync_key = text_of(_direct_find(collection[2], "AirSync.SyncKey"))
+        if not new_sync_key:
+            raise ProtocolError("Sync Add: no SyncKey in response")
+
+        responses = _direct_find(collection[2], "AirSync.Responses")
+        additions = [node for node in (responses[2] if responses else []) if node[0] == "AirSync.Add"]
+        addition = next(
+            (
+                node
+                for node in additions
+                if text_of(_direct_find(node[2], "AirSync.ClientId")) == item_client_id
+            ),
+            None,
+        )
+        if addition is None:
+            raise ProtocolError(f"Sync Add: no response for ClientId {item_client_id!r}")
+        status = text_of(_direct_find(addition[2], "AirSync.Status"))
+        if status is None:
+            raise ProtocolError("Sync Add: item response has no Status")
+        server_id = text_of(_direct_find(addition[2], "AirSync.ServerId"))
+        if status == "1" and not server_id:
+            raise ProtocolError("Sync Add: successful item response has no ServerId")
+        return EmailAddResult(
+            sync_key=new_sync_key,
+            client_id=item_client_id,
+            status=status,
+            server_id=server_id,
+        )
 
     def get_item_estimate(self, folder_id: str, sync_key: str) -> int:
         """``GetItemEstimate`` needs a real (non-zero) ``SyncKey`` -- bootstrap one via ``sync_folder`` first."""

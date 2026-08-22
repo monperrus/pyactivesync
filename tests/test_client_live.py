@@ -173,6 +173,45 @@ def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexis
     assert preexisting_folder_ids <= folders_after
 
 
+def test_create_email_draft_only_touches_its_own_item(live_client: Client) -> None:
+    """Create a MIME draft through Sync Add, verify it, then delete it."""
+    drafts = next(f for f in live_client.list_folders() if f.type == FolderType.DRAFTS)
+    bootstrap = live_client.sync_folder(drafts.id)
+    marker = f"pyactivesync-test-{uuid.uuid4().hex[:8]}"
+
+    message = EmailMessage()
+    message["To"] = live_client.user
+    message["Subject"] = marker
+    message.set_content("throwaway draft for pyactivesync integration tests")
+    message.add_attachment(b"draft attachment", maintype="application", subtype="octet-stream", filename="draft.bin")
+
+    created = live_client.create_email_draft(
+        drafts.id,
+        bootstrap.sync_key,
+        message,
+        read=True,
+        flagged=True,
+        client_id=marker,
+    )
+    assert created.status == "1"
+    assert created.server_id
+    try:
+        properties = live_client.fetch_item(drafts.id, created.server_id)
+        assert properties.get("Email.Subject") == marker
+        assert properties.get("Email.Read") == "1"
+        assert properties.get("Email.Status") == "2"
+        file_reference = properties.get("AirSyncBase.FileReference")
+        assert file_reference
+        assert live_client.fetch_attachment(file_reference) == b"draft attachment"
+    finally:
+        live_client.apply_email_changes(
+            drafts.id,
+            created.sync_key,
+            [EmailChange(created.server_id, delete=True)],
+            deletes_as_moves=False,
+        )
+
+
 def test_search_gal_for_self(live_client: Client) -> None:
     try:
         results = live_client.search_gal(live_client.user)

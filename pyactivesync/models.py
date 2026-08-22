@@ -106,6 +106,20 @@ class EmailChangesResult:
 
 
 @dataclass(frozen=True, slots=True)
+class EmailAddResult:
+    """Result of creating one draft email with client-originated ``Sync Add``.
+
+    ``server_id`` is present on success.  A rejected item still advances the
+    collection synchronization key and is returned with its per-item status.
+    """
+
+    sync_key: str
+    client_id: str
+    status: str
+    server_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AttachmentInfo:
     """Attachment metadata as found in a fetched item's properties.
 

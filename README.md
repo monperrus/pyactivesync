@@ -124,6 +124,13 @@ status; successful additions also include the assigned `ServerId`.
 Live EAS 16.1 testing confirmed that Exchange accepts this MIME draft path,
 including attachment round-trips and read/follow-up flag state.
 
+`send_mail()` accepts an optional `client_id=` of 1 to 40 characters. When it
+is omitted, pyactivesync generates a UUID as before. A bridge can persist and
+supply this identifier before submitting a message, but caller control does
+not by itself make an ambiguous SendMail safe to retry: duplicate-ClientId
+behavior is server-dependent, and pyactivesync never automatically retries
+this non-idempotent command.
+
 `search_mailbox()` deliberately has no `free_text=` parameter: full-text
 `Search` conditions are known to fail against real Exchange servers with
 `Store.Status=110`, a server-side bug in EAS's `Search` handling rather

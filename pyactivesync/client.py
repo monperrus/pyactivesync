@@ -51,6 +51,22 @@ def _check_status(command: str, status: str | None, meanings: dict[str, str] | N
         raise StatusError(command, status, (meanings or {}).get(status))
 
 
+def _validate_compose_client_id(client_id: str) -> None:
+    """Validate the ComposeMail schema's 1..40-character XML string."""
+    if not isinstance(client_id, str):
+        raise TypeError("client_id must be a string")
+    if not 1 <= len(client_id) <= 40:
+        raise ValueError("client_id must contain between 1 and 40 characters")
+    if any(
+        char not in "\t\n\r"
+        and not ("\u0020" <= char <= "\ud7ff")
+        and not ("\ue000" <= char <= "\ufffd")
+        and not ("\U00010000" <= char <= "\U0010ffff")
+        for char in client_id
+    ):
+        raise ValueError("client_id contains a character that is not valid in XML")
+
+
 class Client:
     """A stateless-HTTP EAS client wrapping one connection to a single mailbox.
 
@@ -752,16 +768,28 @@ class Client:
 
     # -- Mail --------------------------------------------------------------------
 
-    def send_mail(self, message: Message, *, save_in_sent_items: bool = True) -> None:
+    def send_mail(
+        self,
+        message: Message,
+        *,
+        save_in_sent_items: bool = True,
+        client_id: str | None = None,
+    ) -> None:
         """``SendMail``: WBXML ``ComposeMail`` wrapper, MIME embedded as opaque data.
 
         Protocol v16.1 requires the
         ``ComposeMail`` WBXML wrapper -- unlike v12.0/12.1, a raw
-        ``message/rfc822`` POST body is rejected.
+        ``message/rfc822`` POST body is rejected.  ``client_id`` defaults to a
+        new UUID hex string and can be supplied by callers that persist their
+        own submission identifier.  Reusing an ID does not make retrying safe:
+        duplicate detection is server-dependent and SendMail remains
+        non-idempotent.
         """
+        item_client_id = client_id if client_id is not None else uuid.uuid4().hex
+        _validate_compose_client_id(item_client_id)
         self._ensure_provisioned()
         mime_bytes = to_crlf_bytes(message)
-        children = [wtag("ComposeMail", "ClientId", text=uuid.uuid4().hex)]
+        children = [wtag("ComposeMail", "ClientId", text=item_client_id)]
         if save_in_sent_items:
             children.append(wtag("ComposeMail", "SaveInSentItems"))
         children.append(wtag("ComposeMail", "MIME", opaque=mime_bytes))

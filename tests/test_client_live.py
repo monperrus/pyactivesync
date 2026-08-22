@@ -51,6 +51,28 @@ def test_get_item_estimate(live_client: Client) -> None:
     assert estimate >= 0
 
 
+def test_fetch_existing_item_and_attachment_read_only(live_client: Client) -> None:
+    """Fetch an existing message and, when one is present in the sync window,
+    one of its attachments. ItemOperations Fetch does not mutate the item.
+    """
+    inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
+    result = live_client.sync_folder(inbox.id)
+    result = live_client.sync_folder(inbox.id, sync_key=result.sync_key, window_size=100)
+    items = result.added + result.changed
+    if not items:
+        pytest.skip("Inbox sync window contained no fetchable items")
+
+    first_properties = live_client.fetch_item(inbox.id, items[0].server_id)
+    assert isinstance(first_properties, dict)
+
+    for item in items:
+        properties = live_client.fetch_item(inbox.id, item.server_id)
+        if file_reference := properties.get("AirSyncBase.FileReference"):
+            assert isinstance(live_client.fetch_attachment(file_reference), bytes)
+            return
+    pytest.skip("Inbox sync window contained no item with an attachment")
+
+
 def test_resolve_recipients_self(live_client: Client) -> None:
     recipients = live_client.resolve_recipients(live_client.user)
     assert isinstance(recipients, list)
@@ -125,6 +147,16 @@ def test_search_gal_for_self(live_client: Client) -> None:
         results = live_client.search_gal(live_client.user)
     except StatusError:
         pytest.skip("GAL search not supported/enabled on this server")
+    assert isinstance(results, list)
+
+
+def test_search_mailbox_structured_read_only(live_client: Client) -> None:
+    inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
+    results = live_client.search_mailbox(
+        inbox.id,
+        date_received_after="2020-01-01T00:00:00.000Z",
+        max_results=10,
+    )
     assert isinstance(results, list)
 
 

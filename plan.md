@@ -194,7 +194,7 @@ implementation would silently reintroduce without this list:
   structure and desyncs.
 - **`Provision` needs `Settings.DeviceInformation` on the very first request**, or the server
   returns `Status=165` (`DeviceInformationRequired`) with no `PolicyKey`.
-- **`SendMail` must use the WBXML `ComposeMail` wrapper at protocol v14.1**, not a raw
+- **`SendMail` must use the WBXML `ComposeMail` wrapper at protocol v16.1**, not a raw
   `message/rfc822` POST body (that only works at protocol ≤12.1); the MIME bytes inside the
   `ComposeMail.MIME` opaque field must use **CRLF line endings** or the server returns
   `Status=101` (`InvalidContent`).
@@ -227,10 +227,9 @@ implementation would silently reintroduce without this list:
   a folder (e.g. a draft) without sending it via `SendMail`. Untested this session — needs
   verification against a real server (likely `Sync` `Add` with a full item body) before any
   draft-creation helper is added; v1 doesn't promise one.
-- **Protocol version negotiation.** v1 hardcodes `MS-ASProtocolVersion: 14.1` (what was verified
-  against `webmail.kth.se`). A more portable client would `OPTIONS` the server first and pick from
-  the advertised `MS-ASProtocolVersions` list — worth doing before claiming broad server
-  compatibility, but not required to ship a v1 that's honest about what it's tested against.
+- **Protocol version negotiation.** v1 intentionally hardcodes `MS-ASProtocolVersion: 16.1`,
+  verified against `webmail.kth.se`. Supporting older servers is outside the library's scope;
+  callers must use a server that advertises EAS 16.1.
 - **NTLM vs Basic auth.** This session's server accepted Basic auth directly (confirmed via the
   `WWW-Authenticate: Basic` challenge on unauthenticated `OPTIONS`); some EAS deployments require
   NTLM. `requests` doesn't do NTLM without an extra dependency (`requests-ntlm`) — decide whether

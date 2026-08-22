@@ -1,6 +1,6 @@
 # pyactivesync
 
-A Python client library for Exchange ActiveSync (EAS), implementing
+A Python client library exclusively for Exchange ActiveSync (EAS) 16.1, implementing
 enough of [MS-ASCMD] (the command protocol) and [MS-ASWBXML] (the binary
 XML encoding) to talk to a real Exchange server: folder listing, mail
 sync, item/attachment fetch, sending mail, folder management, moving
@@ -8,6 +8,13 @@ items, directory search, and push notifications via `Ping`.
 
 [MS-ASCMD]: https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-ascmd/
 [MS-ASWBXML]: https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-aswbxml/
+
+## Protocol version
+
+Pyactivesync targets **EAS 16.1 exclusively**. Every request carries
+`MS-ASProtocolVersion: 16.1`; the version is not configurable and the
+library does not negotiate or fall back to older protocol versions. The
+server must advertise EAS 16.1 support.
 
 ## Install
 
@@ -75,7 +82,7 @@ sync with a local cache.
 | `Search` (Mailbox, structured) | `Client.search_mailbox()` |
 | `Settings` (Oof get/set) | `Client.get_oof()`/`set_oof()` |
 
-**Not implemented**: `MeetingResponse`, `ValidateCert`, `SmartForward`/`SmartReply`.
+**Not implemented**: `Find`, `MeetingResponse`, `ValidateCert`, `SmartForward`/`SmartReply`.
 Documented as unimplemented, not silently missing.
 
 **Non-goals**: an EAS *server*; Autodiscover (pass a server hostname

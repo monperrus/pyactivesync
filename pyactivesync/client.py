@@ -61,7 +61,6 @@ class Client:
         device_id: str,
         user: str | None = None,
         device_type: str = "pyactivesync",
-        protocol_version: str = "14.1",
         verify_ssl: bool = True,
         timeout: float = 30.0,
     ) -> None:
@@ -72,7 +71,6 @@ class Client:
             password,
             device_id=device_id,
             device_type=device_type,
-            protocol_version=protocol_version,
             verify_ssl=verify_ssl,
             timeout=timeout,
         )
@@ -473,7 +471,7 @@ class Client:
     def send_mail(self, message: Message, *, save_in_sent_items: bool = True) -> None:
         """``SendMail``: WBXML ``ComposeMail`` wrapper, MIME embedded as opaque data.
 
-        Protocol v14.1 (what this client negotiates) requires the
+        Protocol v16.1 requires the
         ``ComposeMail`` WBXML wrapper -- unlike v12.0/12.1, a raw
         ``message/rfc822`` POST body is rejected.
         """

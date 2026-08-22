@@ -8,6 +8,7 @@ import requests
 _RETRYABLE_STATUS = frozenset({500, 502, 503, 504})
 _RETRY_TOTAL = 3
 _RETRY_BACKOFF_FACTOR = 0.5
+_EAS_PROTOCOL_VERSION = "16.1"
 
 
 class Transport:
@@ -21,14 +22,12 @@ class Transport:
         *,
         device_id: str,
         device_type: str = "pyactivesync",
-        protocol_version: str = "14.1",
         verify_ssl: bool = True,
         timeout: float = 30.0,
     ) -> None:
         self.base_url = f"https://{server}/Microsoft-Server-ActiveSync"
         self.device_id = device_id
         self.device_type = device_type
-        self.protocol_version = protocol_version
         self.timeout = timeout
         self.policy_key: str | None = None
 
@@ -63,7 +62,7 @@ class Transport:
             params.update(extra_params)
         headers = {
             "Content-Type": "application/vnd.ms-sync.wbxml",
-            "MS-ASProtocolVersion": self.protocol_version,
+            "MS-ASProtocolVersion": _EAS_PROTOCOL_VERSION,
         }
         if self.policy_key:
             headers["X-MS-PolicyKey"] = self.policy_key

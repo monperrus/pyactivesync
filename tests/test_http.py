@@ -48,3 +48,9 @@ def test_non_idempotent_is_the_default(transport: Transport) -> None:
         with pytest.raises(requests.HTTPError):
             transport.post("SendMail", "user@example.com", b"<wbxml>")
     assert post.call_count == 1
+
+
+def test_every_request_uses_eas_16_1(transport: Transport) -> None:
+    with patch.object(transport.session, "post", return_value=_response(200)) as post:
+        transport.post("FolderSync", "user@example.com", b"<wbxml>", idempotent=True)
+    assert post.call_args.kwargs["headers"]["MS-ASProtocolVersion"] == "16.1"

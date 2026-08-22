@@ -5,11 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "pyactivesync"
 version = "0.1.0"
-description = "A Python client for Exchange ActiveSync (EAS / MS-ASCMD / MS-ASWBXML)"
+description = "A Python client library exclusively for Exchange ActiveSync 16.1 (EAS / MS-ASCMD / MS-ASWBXML)"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Martin Monperrus" }]
+keywords = ["exchange", "activesync", "eas", "eas-16.1", "email"]
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",

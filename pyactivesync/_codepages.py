@@ -26,7 +26,14 @@ CODEPAGES: dict[str, dict[str, int]] = {
         "MessageClass": 0x13, "Subject": 0x14, "Read": 0x15, "To": 0x16,
         "Cc": 0x17, "From": 0x18, "ReplyTo": 0x19, "Categories": 0x1B,
         "Category": 0x1C, "InternetCPID": 0x39, "Flag": 0x3A,
-        "ContentClass": 0x3C,
+        "Status": 0x3B, "ContentClass": 0x3C, "FlagType": 0x3D,
+        "CompleteTime": 0x3E,
+    },
+    "Tasks": {
+        "DateCompleted": 0x0B, "DueDate": 0x0C, "UtcDueDate": 0x0D,
+        "ReminderSet": 0x1B, "ReminderTime": 0x1C,
+        "StartDate": 0x1E, "UtcStartDate": 0x1F, "Subject": 0x20,
+        "OrdinalDate": 0x22,
     },
     "Move": {
         "MoveItems": 0x05, "Move": 0x06, "SrcMsgId": 0x07, "SrcFldId": 0x08,
@@ -132,6 +139,7 @@ PAGE_INDEX: dict[str, int] = {
     "Move": 5,
     "ItemEstimate": 6,
     "FolderHierarchy": 7,
+    "Tasks": 9,
     "Ping": 13,
     "Provision": 14,
     "ResolveRecipients": 10,

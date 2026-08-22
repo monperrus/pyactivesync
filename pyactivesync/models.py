@@ -79,6 +79,33 @@ class SyncResult:
 
 
 @dataclass(frozen=True, slots=True)
+class EmailChange:
+    """One client-originated email mutation sent through ``Sync``.
+
+    ``None`` means leave that property unchanged. A delete cannot be combined
+    with read or flag changes.
+    """
+
+    server_id: str
+    read: bool | None = None
+    flagged: bool | None = None
+    delete: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class EmailChangesResult:
+    """Result of applying one batch of email changes.
+
+    EAS commonly omits per-item responses for successful changes. ``statuses``
+    therefore starts at success (``"1"``) for every requested item and is
+    overwritten by any explicit status returned by the server.
+    """
+
+    sync_key: str
+    statuses: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class AttachmentInfo:
     """Attachment metadata as found in a fetched item's properties.
 

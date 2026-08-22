@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import uuid
 from collections.abc import Iterable
+from datetime import datetime, timezone
 from email.message import Message
 from types import TracebackType
 
@@ -13,6 +14,8 @@ from ._wbxml import Node, NodeBuilder, WBXMLReader, WBXMLWriter, find, find_all,
 from .exceptions import ProtocolError, ProvisionError, StatusError
 from .models import (
     BodyType,
+    EmailChange,
+    EmailChangesResult,
     FindItem,
     FindResult,
     Folder,
@@ -36,6 +39,10 @@ _OOF_APPLIES_TO_TAGS = {
 _PROVISION_STATUS_MEANINGS = {"165": "DeviceInformationRequired"}
 _SENDMAIL_STATUS_MEANINGS = {"101": "InvalidContent"}
 _MOVEITEMS_STATUS_MEANINGS = {"1": "InvalidSourceId", "2": "InvalidDestinationId"}
+
+
+def _direct_find(nodes: list[Node], path: str) -> Node | None:
+    return next((node for node in nodes if node[0] == path), None)
 
 
 def _check_status(command: str, status: str | None, meanings: dict[str, str] | None = None) -> None:
@@ -341,6 +348,136 @@ class Client:
         server_id = text_of(find(children, "AirSync.ServerId")) or ""
         appdata = find(children, "AirSync.ApplicationData")
         return SyncItem(server_id=server_id, fields=leaves(appdata[2]) if appdata else {})
+
+    def apply_email_changes(
+        self,
+        folder_id: str,
+        sync_key: str,
+        changes: Iterable[EmailChange],
+        *,
+        deletes_as_moves: bool = True,
+    ) -> EmailChangesResult:
+        """Apply read, follow-up flag, and delete mutations through ``Sync``.
+
+        ``sync_key`` must be the latest non-zero key returned by
+        :meth:`sync_folder` or this method. Successful changes often have no
+        per-item response in EAS, in which case their status is reported as
+        ``"1"``. Set ``deletes_as_moves=False`` for permanent deletion rather
+        than moving deleted items to the Deleted Items folder.
+        """
+        if not folder_id:
+            raise ValueError("folder_id must not be empty")
+        if not sync_key or sync_key == "0":
+            raise ValueError("sync_key must be a non-zero synchronized key")
+        requested = list(changes)
+        if not requested:
+            raise ValueError("at least one email change is required")
+
+        commands = []
+        statuses: dict[str, str] = {}
+        flag_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        for change in requested:
+            if not change.server_id:
+                raise ValueError("email change server_id must not be empty")
+            if change.server_id in statuses:
+                raise ValueError(f"duplicate email change for server_id {change.server_id!r}")
+            if change.delete and (change.read is not None or change.flagged is not None):
+                raise ValueError("a delete cannot be combined with read or flag changes")
+            if not change.delete and change.read is None and change.flagged is None:
+                raise ValueError("email change has no mutation")
+            statuses[change.server_id] = "1"
+
+            if change.delete:
+                commands.append(
+                    wtag(
+                        "AirSync",
+                        "Delete",
+                        children=[wtag("AirSync", "ServerId", text=change.server_id)],
+                    )
+                )
+                continue
+
+            application_data = []
+            if change.read is not None:
+                application_data.append(wtag("Email", "Read", text="1" if change.read else "0"))
+            if change.flagged is not None:
+                flag_children = [wtag("Email", "Status", text="2" if change.flagged else "0")]
+                if change.flagged:
+                    # MS-ASEMAIL requires active flags to include their type and
+                    # either start/due dates or completion dates. Sending only
+                    # Status=2, as some clients do, can fail with Sync Status=6.
+                    flag_children.extend(
+                        [
+                            wtag("Email", "FlagType", text="Flag for follow up"),
+                            wtag("Tasks", "StartDate", text=flag_time),
+                            wtag("Tasks", "UtcStartDate", text=flag_time),
+                            wtag("Tasks", "DueDate", text=flag_time),
+                            wtag("Tasks", "UtcDueDate", text=flag_time),
+                        ]
+                    )
+                application_data.append(wtag("Email", "Flag", children=flag_children))
+            commands.append(
+                wtag(
+                    "AirSync",
+                    "Change",
+                    children=[
+                        wtag("AirSync", "ServerId", text=change.server_id),
+                        wtag("AirSync", "ApplicationData", children=application_data),
+                    ],
+                )
+            )
+
+        self._ensure_provisioned()
+        w = WBXMLWriter()
+        w.tag(
+            "AirSync",
+            "Sync",
+            children=[
+                wtag(
+                    "AirSync",
+                    "Collections",
+                    children=[
+                        wtag(
+                            "AirSync",
+                            "Collection",
+                            children=[
+                                wtag("AirSync", "SyncKey", text=sync_key),
+                                wtag("AirSync", "CollectionId", text=folder_id),
+                                wtag("AirSync", "DeletesAsMoves", text="1" if deletes_as_moves else "0"),
+                                wtag("AirSync", "GetChanges", text="0"),
+                                wtag("AirSync", "Commands", children=commands),
+                            ],
+                        )
+                    ],
+                )
+            ],
+        )
+        # A mutation is not retried blindly: the server may have committed it
+        # before returning a transient HTTP error.
+        resp = self._post("Sync", w.render())
+        nodes = WBXMLReader(resp).parse()
+        root = find(nodes, "AirSync.Sync")
+        if root is None:
+            raise ProtocolError("Sync email changes: no Sync response")
+        _check_status("Sync", text_of(_direct_find(root[2], "AirSync.Status")))
+        collections = _direct_find(root[2], "AirSync.Collections")
+        collection = _direct_find(collections[2], "AirSync.Collection") if collections else None
+        if collection is None:
+            raise ProtocolError("Sync email changes: no Collection in response")
+        _check_status("Sync", text_of(_direct_find(collection[2], "AirSync.Status")))
+        new_sync_key = text_of(_direct_find(collection[2], "AirSync.SyncKey"))
+        if not new_sync_key:
+            raise ProtocolError("Sync email changes: no SyncKey in response")
+        responses = _direct_find(collection[2], "AirSync.Responses")
+        if responses is not None:
+            for name, _, children in responses[2]:
+                if name not in {"AirSync.Change", "AirSync.Delete"}:
+                    continue
+                server_id = text_of(_direct_find(children, "AirSync.ServerId"))
+                status = text_of(_direct_find(children, "AirSync.Status"))
+                if server_id is not None and status is not None:
+                    statuses[server_id] = status
+        return EmailChangesResult(sync_key=new_sync_key, statuses=statuses)
 
     def get_item_estimate(self, folder_id: str, sync_key: str) -> int:
         """``GetItemEstimate`` needs a real (non-zero) ``SyncKey`` -- bootstrap one via ``sync_folder`` first."""

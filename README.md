@@ -26,7 +26,7 @@ pip install pyactivesync
 
 ```python
 from email.message import EmailMessage
-from pyactivesync import Client, FolderType, BodyType
+from pyactivesync import Client, EmailChange, FolderType, BodyType
 
 with Client(
     server="mail.example.com",
@@ -46,12 +46,25 @@ with Client(
         print(item.fields.get("Email.Subject"))
         body = client.fetch_item(inbox.id, item.server_id, body_type=BodyType.HTML)
 
+    if result.added:
+        # Mutations consume and advance the folder's SyncKey.
+        changes = client.apply_email_changes(
+            inbox.id,
+            result.sync_key,
+            [EmailChange(result.added[0].server_id, read=True, flagged=True)],
+        )
+
     msg = EmailMessage()
     msg["To"] = "someone@example.com"
     msg["Subject"] = "hello from pyactivesync"
     msg.set_content("plain text body")
     client.send_mail(msg)
 ```
+
+Use `read=False` to mark an item unread, `flagged=False` to clear its
+follow-up flag, and `delete=True` to delete it. Pass each returned
+`EmailChangesResult.sync_key` into the next mutation or sync request for that
+folder.
 
 `Client` is a context manager wrapping one `requests.Session` -- EAS is
 stateless HTTP (an auth header plus a `PolicyKey` header), so unlike an
@@ -70,6 +83,7 @@ sync with a local cache.
 | `Provision` | `Client.provision()` (also called lazily) |
 | `FolderSync` | `Client.list_folders()` |
 | `Sync` | `Client.sync_folder()` |
+| `Sync` item mutation | `Client.apply_email_changes()` (read/flag/delete) |
 | `GetItemEstimate` | `Client.get_item_estimate()` |
 | `ItemOperations` Fetch (body) | `Client.fetch_item()` |
 | `ItemOperations` Fetch (attachment) | `Client.fetch_attachment()` |

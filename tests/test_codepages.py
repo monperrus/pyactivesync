@@ -10,6 +10,7 @@ EXPECTED_PAGE_NUMBERS = {
     "Move": 5,
     "ItemEstimate": 6,
     "FolderHierarchy": 7,
+    "Tasks": 9,
     "ResolveRecipients": 10,
     "Ping": 13,
     "Provision": 14,

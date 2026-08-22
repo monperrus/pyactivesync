@@ -22,7 +22,7 @@ from email.message import EmailMessage
 
 import pytest
 
-from pyactivesync import Client, FolderType, OofState
+from pyactivesync import Client, EmailChange, FolderType, OofState
 from pyactivesync.exceptions import StatusError
 
 
@@ -95,10 +95,8 @@ def test_folder_lifecycle_only_touches_its_own_folder(live_client: Client, preex
     assert folder.id not in folders_after
 
 
-def test_send_mail_move_and_fetch_attachment(live_client: Client, preexisting_folder_ids: set[str]) -> None:
-    """SendMail -> locate via Sync -> Fetch body -> FolderCreate -> MoveItems
-    -> Fetch attachment -> FolderDelete (cascades, cleans up the message
-    too). Only ever touches the throwaway folder/message this test creates."""
+def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexisting_folder_ids: set[str]) -> None:
+    """Exercise item writes only against a message and folder created here."""
     inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
     marker = f"pyactivesync-test-{uuid.uuid4().hex[:8]}"
 
@@ -136,6 +134,39 @@ def test_send_mail_move_and_fetch_attachment(live_client: Client, preexisting_fo
     if file_ref:
         data = live_client.fetch_attachment(file_ref)
         assert data == b"hello from pyactivesync"
+
+    bootstrap = live_client.sync_folder(test_folder.id)
+    synced = live_client.sync_folder(test_folder.id, sync_key=bootstrap.sync_key)
+    assert any(item.server_id == new_id for item in synced.added + synced.changed)
+
+    changed = live_client.apply_email_changes(
+        test_folder.id,
+        synced.sync_key,
+        [EmailChange(new_id, read=True, flagged=True)],
+    )
+    assert changed.statuses[new_id] == "1"
+    props = live_client.fetch_item(test_folder.id, new_id)
+    assert props.get("Email.Read") == "1"
+    assert props.get("Email.Status") == "2"
+
+    changed = live_client.apply_email_changes(
+        test_folder.id,
+        changed.sync_key,
+        [EmailChange(new_id, read=False, flagged=False)],
+    )
+    assert changed.statuses[new_id] == "1"
+    props = live_client.fetch_item(test_folder.id, new_id)
+    assert props.get("Email.Read") == "0"
+    assert props.get("Email.Status") in {None, "0"}
+
+    deleted = live_client.apply_email_changes(
+        test_folder.id,
+        changed.sync_key,
+        [EmailChange(new_id, delete=True)],
+        deletes_as_moves=False,
+    )
+    assert deleted.statuses[new_id] == "1"
+    assert live_client.fetch_item(test_folder.id, new_id) == {}
 
     live_client.delete_folder(test_folder.id)
     folders_after = {f.id for f in live_client.list_folders()}

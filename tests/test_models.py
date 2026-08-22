@@ -4,7 +4,17 @@ import dataclasses
 
 import pytest
 
-from pyactivesync.models import BodyType, FindItem, FindResult, Folder, FolderType, SyncItem, SyncResult
+from pyactivesync.models import (
+    BodyType,
+    EmailChange,
+    EmailChangesResult,
+    FindItem,
+    FindResult,
+    Folder,
+    FolderType,
+    SyncItem,
+    SyncResult,
+)
 
 
 def test_folder_type_values_match_spec() -> None:
@@ -43,3 +53,17 @@ def test_find_result_defaults_are_empty_and_independent() -> None:
     b = FindResult(search_id="b", status="1")
     a.items.append(FindItem(server_id="9:1"))
     assert b.items == []
+
+
+def test_email_changes_result_statuses_default_empty_and_independent() -> None:
+    a = EmailChangesResult(sync_key="1")
+    b = EmailChangesResult(sync_key="2")
+    a.statuses["9:1"] = "1"
+    assert b.statuses == {}
+
+
+def test_email_change_defaults_leave_properties_unchanged() -> None:
+    change = EmailChange(server_id="9:1")
+    assert change.read is None
+    assert change.flagged is None
+    assert not change.delete

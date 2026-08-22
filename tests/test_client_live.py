@@ -22,7 +22,7 @@ from email.message import EmailMessage
 
 import pytest
 
-from pyactivesync import Client, EmailChange, FolderType, OofState
+from pyactivesync import BodyType, Client, EmailChange, FetchedItem, FolderType, OofState
 from pyactivesync.exceptions import StatusError
 
 
@@ -63,12 +63,16 @@ def test_fetch_existing_item_and_attachment_read_only(live_client: Client) -> No
         pytest.skip("Inbox sync window contained no fetchable items")
 
     first_properties = live_client.fetch_item(inbox.id, items[0].server_id)
-    assert isinstance(first_properties, dict)
+    assert isinstance(first_properties, FetchedItem)
+    mime_item = live_client.fetch_item(inbox.id, items[0].server_id, body_type=BodyType.MIME)
+    assert mime_item.body is not None
+    assert mime_item.body.type == BodyType.MIME
+    assert isinstance(mime_item.body.data, bytes)
 
     for item in items:
         properties = live_client.fetch_item(inbox.id, item.server_id)
-        if file_reference := properties.get("AirSyncBase.FileReference"):
-            assert isinstance(live_client.fetch_attachment(file_reference), bytes)
+        if properties.attachments:
+            assert isinstance(live_client.fetch_attachment(properties.attachments[0].file_reference), bytes)
             return
     pytest.skip("Inbox sync window contained no item with an attachment")
 
@@ -105,6 +109,7 @@ def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexis
     msg["Subject"] = marker
     msg.set_content("throwaway message for pyactivesync integration tests")
     msg.add_attachment(b"hello from pyactivesync", maintype="application", subtype="octet-stream", filename="test.txt")
+    msg.add_attachment(b"second attachment", maintype="application", subtype="octet-stream", filename="second.bin")
     live_client.send_mail(msg)
 
     item_id = None
@@ -119,8 +124,8 @@ def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexis
         time.sleep(3)
     assert item_id, f"message {marker!r} never showed up via Sync"
 
-    body = live_client.fetch_item(inbox.id, item_id)
-    assert body
+    fetched = live_client.fetch_item(inbox.id, item_id)
+    assert fetched.body is not None
 
     folder_name = f"pyactivesync-test-{uuid.uuid4().hex[:8]}"
     test_folder = live_client.create_folder(folder_name, parent_id="0", type=FolderType.USER_GENERIC)
@@ -130,10 +135,12 @@ def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexis
     assert new_id
 
     props = live_client.fetch_item(test_folder.id, new_id)
-    file_ref = props.get("AirSyncBase.FileReference")
-    if file_ref:
-        data = live_client.fetch_attachment(file_ref)
-        assert data == b"hello from pyactivesync"
+    attachments = {
+        attachment.display_name: live_client.fetch_attachment(attachment.file_reference)
+        for attachment in props.attachments
+    }
+    assert attachments["test.txt"] == b"hello from pyactivesync"
+    assert attachments["second.bin"] == b"second attachment"
 
     bootstrap = live_client.sync_folder(test_folder.id)
     synced = live_client.sync_folder(test_folder.id, sync_key=bootstrap.sync_key)
@@ -146,8 +153,8 @@ def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexis
     )
     assert changed.statuses[new_id] == "1"
     props = live_client.fetch_item(test_folder.id, new_id)
-    assert props.get("Email.Read") == "1"
-    assert props.get("Email.Status") == "2"
+    assert props.fields.get("Email.Read") == "1"
+    assert props.fields.get("Email.Status") == "2"
 
     changed = live_client.apply_email_changes(
         test_folder.id,
@@ -156,8 +163,8 @@ def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexis
     )
     assert changed.statuses[new_id] == "1"
     props = live_client.fetch_item(test_folder.id, new_id)
-    assert props.get("Email.Read") == "0"
-    assert props.get("Email.Status") in {None, "0"}
+    assert props.fields.get("Email.Read") == "0"
+    assert props.fields.get("Email.Status") in {None, "0"}
 
     deleted = live_client.apply_email_changes(
         test_folder.id,
@@ -166,7 +173,8 @@ def test_send_mail_move_mutate_and_fetch_attachment(live_client: Client, preexis
         deletes_as_moves=False,
     )
     assert deleted.statuses[new_id] == "1"
-    assert live_client.fetch_item(test_folder.id, new_id) == {}
+    with pytest.raises(StatusError):
+        live_client.fetch_item(test_folder.id, new_id)
 
     live_client.delete_folder(test_folder.id)
     folders_after = {f.id for f in live_client.list_folders()}
@@ -197,12 +205,11 @@ def test_create_email_draft_only_touches_its_own_item(live_client: Client) -> No
     assert created.server_id
     try:
         properties = live_client.fetch_item(drafts.id, created.server_id)
-        assert properties.get("Email.Subject") == marker
-        assert properties.get("Email.Read") == "1"
-        assert properties.get("Email.Status") == "2"
-        file_reference = properties.get("AirSyncBase.FileReference")
-        assert file_reference
-        assert live_client.fetch_attachment(file_reference) == b"draft attachment"
+        assert properties.fields.get("Email.Subject") == marker
+        assert properties.fields.get("Email.Read") == "1"
+        assert properties.fields.get("Email.Status") == "2"
+        assert properties.attachments
+        assert live_client.fetch_attachment(properties.attachments[0].file_reference) == b"draft attachment"
     finally:
         live_client.apply_email_changes(
             drafts.id,

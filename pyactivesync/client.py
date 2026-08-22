@@ -11,18 +11,21 @@ from typing import overload
 
 from ._http import Transport
 from ._mime import to_7bit_crlf_text, to_crlf_bytes
-from ._wbxml import Node, NodeBuilder, WBXMLReader, WBXMLWriter, find, find_all, leaves, text_of, wtag
+from ._wbxml import Node, NodeBuilder, WBXMLReader, WBXMLWriter, find, find_all, leaves, opaque_of, text_of, wtag
 from .exceptions import ProtocolError, ProvisionError, StatusError
 from .models import (
+    AttachmentInfo,
     BodyType,
     EmailAddResult,
     EmailChange,
     EmailChangesResult,
+    FetchedItem,
     FindItem,
     FindResult,
     Folder,
     FolderType,
     GalEntry,
+    ItemBody,
     OofMessage,
     OofSettings,
     OofState,
@@ -676,9 +679,22 @@ class Client:
 
     # -- Items -------------------------------------------------------------------
 
-    def fetch_item(self, folder_id: str, item_id: str, *, body_type: BodyType = BodyType.HTML) -> dict[str, str]:
-        """``ItemOperations`` Fetch: full item properties. Does not mark the item read."""
+    def fetch_item(self, folder_id: str, item_id: str, *, body_type: BodyType = BodyType.HTML) -> FetchedItem:
+        """``ItemOperations`` Fetch preserving bodies and attachment metadata.
+
+        The operation does not mark the item read. MIME body data is returned
+        as bytes; plain text, HTML, and RTF data retain the WBXML value type.
+        """
         self._ensure_provisioned()
+        option_children = [
+            wtag(
+                "AirSyncBase",
+                "BodyPreference",
+                children=[wtag("AirSyncBase", "Type", text=str(int(body_type)))],
+            )
+        ]
+        if body_type == BodyType.MIME:
+            option_children.append(wtag("AirSync", "MIMESupport", text="2"))
         w = WBXMLWriter()
         w.tag(
             "ItemOperations",
@@ -694,13 +710,7 @@ class Client:
                         wtag(
                             "ItemOperations",
                             "Options",
-                            children=[
-                                wtag(
-                                    "AirSyncBase",
-                                    "BodyPreference",
-                                    children=[wtag("AirSyncBase", "Type", text=str(int(body_type)))],
-                                ),
-                            ],
+                            children=option_children,
                         ),
                     ],
                 ),
@@ -708,10 +718,104 @@ class Client:
         )
         resp = self._post("ItemOperations", w.render(), idempotent=True)
         nodes = WBXMLReader(resp).parse()
-        status = text_of(find(nodes, "ItemOperations.Status"))
-        _check_status("ItemOperations", status)
-        props = find(nodes, "ItemOperations.Properties")
-        return leaves(props[2]) if props else {}
+        root = find(nodes, "ItemOperations.ItemOperations")
+        if root is None:
+            raise ProtocolError("ItemOperations Fetch: no ItemOperations response")
+        _check_status("ItemOperations", text_of(_direct_find(root[2], "ItemOperations.Status")))
+        response = _direct_find(root[2], "ItemOperations.Response")
+        fetch = _direct_find(response[2], "ItemOperations.Fetch") if response else None
+        if fetch is None:
+            raise ProtocolError("ItemOperations Fetch: no Fetch response")
+        _check_status("ItemOperations Fetch", text_of(_direct_find(fetch[2], "ItemOperations.Status")))
+        props = _direct_find(fetch[2], "ItemOperations.Properties")
+        return self._fetched_item(props[2] if props else [])
+
+    @classmethod
+    def _fetched_item(cls, nodes: list[Node]) -> FetchedItem:
+        bodies = [cls._item_body(children) for _, _, children in find_all(nodes, "AirSyncBase.Body")]
+        attachments = [
+            cls._attachment_info(children) for _, _, children in find_all(nodes, "AirSyncBase.Attachment")
+        ]
+        structured = {
+            "AirSyncBase.Attachments",
+            "AirSyncBase.Body",
+            "AirSyncBase.NativeBodyType",
+            "AirSyncBase.ContentType",
+        }
+        native_text = text_of(_direct_find(nodes, "AirSyncBase.NativeBodyType"))
+        return FetchedItem(
+            fields=leaves([node for node in nodes if node[0] not in structured]),
+            bodies=bodies,
+            attachments=attachments,
+            native_body_type=cls._body_type(native_text, "NativeBodyType") if native_text is not None else None,
+            content_type=text_of(_direct_find(nodes, "AirSyncBase.ContentType")),
+        )
+
+    @classmethod
+    def _item_body(cls, nodes: list[Node]) -> ItemBody:
+        type_text = text_of(_direct_find(nodes, "AirSyncBase.Type"))
+        if type_text is None:
+            raise ProtocolError("ItemOperations Fetch: Body has no Type")
+        body_type = cls._body_type(type_text, "Body.Type")
+        data_node = _direct_find(nodes, "AirSyncBase.Data")
+        data: str | bytes | None = opaque_of(data_node)
+        if data is None:
+            data = text_of(data_node)
+        if body_type == BodyType.MIME and isinstance(data, str):
+            data = data.encode("utf-8")
+        return ItemBody(
+            type=body_type,
+            data=data,
+            estimated_data_size=cls._optional_int(nodes, "AirSyncBase.EstimatedDataSize"),
+            truncated=cls._optional_bool(nodes, "AirSyncBase.Truncated"),
+            part=text_of(_direct_find(nodes, "ItemOperations.Part")),
+            preview=text_of(_direct_find(nodes, "AirSyncBase.Preview")),
+        )
+
+    @classmethod
+    def _attachment_info(cls, nodes: list[Node]) -> AttachmentInfo:
+        file_reference = text_of(_direct_find(nodes, "AirSyncBase.FileReference"))
+        if not file_reference:
+            raise ProtocolError("ItemOperations Fetch: Attachment has no FileReference")
+        return AttachmentInfo(
+            file_reference=file_reference,
+            display_name=text_of(_direct_find(nodes, "AirSyncBase.DisplayName")),
+            method=cls._optional_int(nodes, "AirSyncBase.Method"),
+            content_type=text_of(_direct_find(nodes, "AirSyncBase.ContentType")),
+            estimated_data_size=cls._optional_int(nodes, "AirSyncBase.EstimatedDataSize"),
+            content_id=text_of(_direct_find(nodes, "AirSyncBase.ContentId")),
+            content_location=text_of(_direct_find(nodes, "AirSyncBase.ContentLocation")),
+            is_inline=_direct_find(nodes, "AirSyncBase.IsInline") is not None,
+        )
+
+    @staticmethod
+    def _body_type(value: str, field: str) -> BodyType:
+        try:
+            return BodyType(int(value))
+        except (TypeError, ValueError) as exc:
+            raise ProtocolError(f"ItemOperations Fetch: invalid {field} value {value!r}") from exc
+
+    @staticmethod
+    def _optional_int(nodes: list[Node], path: str) -> int | None:
+        value = text_of(_direct_find(nodes, path))
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except ValueError as exc:
+            raise ProtocolError(f"ItemOperations Fetch: invalid {path} value {value!r}") from exc
+
+    @staticmethod
+    def _optional_bool(nodes: list[Node], path: str) -> bool | None:
+        node = _direct_find(nodes, path)
+        if node is None:
+            return None
+        value = text_of(node)
+        if value is None:
+            return True
+        if value in {"0", "1"}:
+            return value == "1"
+        raise ProtocolError(f"ItemOperations Fetch: invalid {path} value {value!r}")
 
     def fetch_attachment(self, file_reference: str) -> bytes:
         """``ItemOperations`` Fetch by ``FileReference``. Returns decoded attachment bytes."""

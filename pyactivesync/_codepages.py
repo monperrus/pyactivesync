@@ -79,7 +79,8 @@ CODEPAGES: dict[str, dict[str, int]] = {
     "ItemOperations": {
         "ItemOperations": 0x05, "Fetch": 0x06, "Store": 0x07, "Options": 0x08,
         "Range": 0x09, "Total": 0x0A, "Properties": 0x0B, "Data": 0x0C,
-        "Status": 0x0D, "Response": 0x0E,
+        "Status": 0x0D, "Response": 0x0E, "Version": 0x0F, "Schema": 0x10,
+        "Part": 0x11,
     },
     "ComposeMail": {
         "SendMail": 0x05, "SmartForward": 0x06, "SmartReply": 0x07,

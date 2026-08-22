@@ -48,7 +48,10 @@ with Client(
 
     for item in result.added:
         print(item.fields.get("Email.Subject"))
-        body = client.fetch_item(inbox.id, item.server_id, body_type=BodyType.HTML)
+        fetched = client.fetch_item(inbox.id, item.server_id, body_type=BodyType.HTML)
+        print(fetched.body.data if fetched.body else None)
+        for attachment in fetched.attachments:
+            data = client.fetch_attachment(attachment.file_reference)
 
     if result.added:
         # Mutations consume and advance the folder's SyncKey.
@@ -96,7 +99,7 @@ sync with a local cache.
 | `Sync` Add | `Client.create_email_draft()` (draft email only) |
 | `Sync` item mutation | `Client.apply_email_changes()` (read/flag/delete) |
 | `GetItemEstimate` | `Client.get_item_estimate()` |
-| `ItemOperations` Fetch (body) | `Client.fetch_item()` |
+| `ItemOperations` Fetch (item/body metadata) | `Client.fetch_item()` |
 | `ItemOperations` Fetch (attachment) | `Client.fetch_attachment()` |
 | `SendMail` | `Client.send_mail()` |
 | `FolderCreate`/`FolderUpdate`/`FolderDelete` | `Client.create_folder()`/`update_folder()`/`delete_folder()` |
@@ -126,6 +129,13 @@ non-draft email addition. The result always includes the advanced collection
 status; successful additions also include the assigned `ServerId`.
 Live EAS 16.1 testing confirmed that Exchange accepts this MIME draft path,
 including attachment round-trips and read/follow-up flag state.
+
+`fetch_item()` returns a typed `FetchedItem`, not a flattened property map.
+Its ordered `bodies` and `attachments` lists preserve repeated EAS containers;
+`body` is a convenience alias for the first body. MIME body data is returned
+as bytes, and each attachment retains its own file reference, display name,
+size, method, content identifiers, and inline state. Other scalar properties
+remain available through `FetchedItem.fields`.
 
 `send_mail()` accepts an optional `client_id=` of 1 to 40 characters. When it
 is omitted, pyactivesync generates a UUID as before. A bridge can persist and

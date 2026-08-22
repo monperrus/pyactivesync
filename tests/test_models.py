@@ -5,9 +5,11 @@ import dataclasses
 import pytest
 
 from pyactivesync.models import (
+    AttachmentInfo,
     BodyType,
     EmailChange,
     EmailChangesResult,
+    FetchedItem,
     FindItem,
     FindResult,
     Folder,
@@ -67,3 +69,10 @@ def test_email_change_defaults_leave_properties_unchanged() -> None:
     assert change.read is None
     assert change.flagged is None
     assert not change.delete
+
+
+def test_fetched_item_lists_are_empty_and_independent() -> None:
+    a = FetchedItem()
+    b = FetchedItem()
+    a.attachments.append(AttachmentInfo(display_name=None, file_reference="ref"))
+    assert b.attachments == []

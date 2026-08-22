@@ -121,16 +121,56 @@ class EmailAddResult:
 
 @dataclass(frozen=True, slots=True)
 class AttachmentInfo:
-    """Attachment metadata as found in a fetched item's properties.
+    """One attachment from a fetched item's ``Attachments`` container.
 
     Use ``file_reference`` with ``Client.fetch_attachment()`` to download
     the actual bytes.
     """
 
-    display_name: str
+    display_name: str | None
     file_reference: str
+    method: int | None = None
     content_type: str | None = None
     estimated_data_size: int | None = None
+    content_id: str | None = None
+    content_location: str | None = None
+    is_inline: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ItemBody:
+    """One ``AirSyncBase:Body`` returned by ``ItemOperations``.
+
+    MIME (type 4) data is always exposed as bytes. Other body types normally
+    contain text, but bytes are retained if the server used WBXML OPAQUE data.
+    """
+
+    type: BodyType
+    data: str | bytes | None = None
+    estimated_data_size: int | None = None
+    truncated: bool | None = None
+    part: str | None = None
+    preview: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FetchedItem:
+    """Lossless structured result of ``Client.fetch_item()``.
+
+    ``fields`` contains non-body, non-attachment scalar properties. Repeated
+    bodies and attachments retain their response order in dedicated lists.
+    """
+
+    fields: dict[str, str] = field(default_factory=dict)
+    bodies: list[ItemBody] = field(default_factory=list)
+    attachments: list[AttachmentInfo] = field(default_factory=list)
+    native_body_type: BodyType | None = None
+    content_type: str | None = None
+
+    @property
+    def body(self) -> ItemBody | None:
+        """The first returned body, for the common one-body response."""
+        return self.bodies[0] if self.bodies else None
 
 
 @dataclass(frozen=True, slots=True)

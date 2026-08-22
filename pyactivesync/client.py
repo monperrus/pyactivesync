@@ -779,12 +779,14 @@ class Client:
                     fields=leaves(properties[2]) if properties is not None else {},
                 )
             )
-        total_text = text_of(find(response[2], "Find.Total"))
         return FindResult(
             search_id=search_id,
             status=response_status,
             range=text_of(find(response[2], "Find.Range")),
-            total=int(total_text) if total_text is not None else None,
+            # Find:Total describes available entries, not necessarily entries
+            # returned, and real Exchange servers can even send Total=0 with a
+            # non-empty page. Report the actual decoded Result count instead.
+            total=len(items),
             items=items,
         )
 

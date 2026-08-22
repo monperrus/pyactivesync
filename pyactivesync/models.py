@@ -122,12 +122,16 @@ class FindItem:
 
 @dataclass(frozen=True, slots=True)
 class FindResult:
-    """One page of EAS 16.1 ``Find`` results."""
+    """One page of EAS 16.1 ``Find`` results.
+
+    ``total`` is the number of items actually present in this response page,
+    not the server's advisory ``Find:Total`` value.
+    """
 
     search_id: str
     status: str
     range: str | None = None
-    total: int | None = None
+    total: int = 0
     items: list[FindItem] = field(default_factory=list)
 
 

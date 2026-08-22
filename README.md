@@ -102,12 +102,11 @@ reproduce the failure for every caller.
 
 EAS 16.1's separate `Find` command is available through `find_mailbox()`
 and `find_gal()`. Both return a `FindResult` containing the server's status,
-range, server-reported total, reusable search id, and flattened result
-properties. This is the supported free-text mailbox-search path: unlike the
-older `Search` command, `Find` returned matching mailbox results in live EAS
-16.1 testing. Callers should use `items` as the authoritative returned page;
-at least one real Exchange deployment reports `Total=0` even with a non-empty
-page.
+range, actual number of returned items, reusable search id, and flattened
+result properties. This is the supported free-text mailbox-search path:
+unlike the older `Search` command, `Find` returned matching mailbox results
+in live EAS 16.1 testing. `FindResult.total` is computed from the returned
+results rather than trusting the server's advisory `Find:Total` value.
 
 ## Development
 

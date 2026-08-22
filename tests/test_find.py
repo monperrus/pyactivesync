@@ -92,7 +92,8 @@ def test_find_mailbox_uses_correct_eas_16_1_hierarchy_and_parses_result() -> Non
     assert result.search_id == SEARCH_ID
     assert result.status == "1"
     assert result.range == "5-5"
-    assert result.total == 8
+    # The response advertises Total=8, but this page contains one Result.
+    assert result.total == 1
     assert len(result.items) == 1
     assert result.items[0].server_id == "9:1"
     assert result.items[0].collection_id == "9"

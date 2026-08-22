@@ -108,6 +108,30 @@ class GalEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class FindItem:
+    """One result returned by the EAS 16.1 ``Find`` command.
+
+    Mailbox results normally have both ids. GAL results have neither. All
+    returned properties are preserved as dotted WBXML names in ``fields``.
+    """
+
+    server_id: str | None = None
+    collection_id: str | None = None
+    fields: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class FindResult:
+    """One page of EAS 16.1 ``Find`` results."""
+
+    search_id: str
+    status: str
+    range: str | None = None
+    total: int | None = None
+    items: list[FindItem] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
 class Recipient:
     type: str | None
     display_name: str | None

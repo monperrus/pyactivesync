@@ -80,9 +80,10 @@ sync with a local cache.
 | `ResolveRecipients` | `Client.resolve_recipients()` |
 | `Search` (GAL) | `Client.search_gal()` |
 | `Search` (Mailbox, structured) | `Client.search_mailbox()` |
+| `Find` (GAL/Mailbox free text) | `Client.find_gal()`/`Client.find_mailbox()` |
 | `Settings` (Oof get/set) | `Client.get_oof()`/`set_oof()` |
 
-**Not implemented**: `Find`, `MeetingResponse`, `ValidateCert`, `SmartForward`/`SmartReply`.
+**Not implemented**: `MeetingResponse`, `ValidateCert`, `SmartForward`/`SmartReply`.
 Documented as unimplemented, not silently missing.
 
 **Non-goals**: an EAS *server*; Autodiscover (pass a server hostname
@@ -98,6 +99,15 @@ than a WBXML encoding issue (confirmed by cross-checking the same
 mailbox's content index through an unrelated protocol, which returns
 correct results for the same query). Shipping that parameter would just
 reproduce the failure for every caller.
+
+EAS 16.1's separate `Find` command is available through `find_mailbox()`
+and `find_gal()`. Both return a `FindResult` containing the server's status,
+range, server-reported total, reusable search id, and flattened result
+properties. This is the supported free-text mailbox-search path: unlike the
+older `Search` command, `Find` returned matching mailbox results in live EAS
+16.1 testing. Callers should use `items` as the authoritative returned page;
+at least one real Exchange deployment reports `Total=0` even with a non-empty
+page.
 
 ## Development
 

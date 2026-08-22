@@ -109,6 +109,19 @@ CODEPAGES: dict[str, dict[str, int]] = {
         "Company": 0x09, "Alias": 0x0A, "FirstName": 0x0B, "LastName": 0x0C,
         "HomePhone": 0x0D, "MobilePhone": 0x0E, "EmailAddress": 0x0F,
     },
+    # Find is codepage 25 and is available only in EAS 16.1.  In particular,
+    # Options is a child of the search criterion, not ExecuteSearch; Exchange
+    # rejects the latter (used by some older clients) with Status=2.
+    "Find": {
+        "Find": 0x05, "SearchId": 0x06, "ExecuteSearch": 0x07,
+        "MailBoxSearchCriterion": 0x08, "Query": 0x09, "Status": 0x0A,
+        "FreeText": 0x0B, "Options": 0x0C, "Range": 0x0D,
+        "DeepTraversal": 0x0E, "Response": 0x11, "Result": 0x12,
+        "Properties": 0x13, "Preview": 0x14, "HasAttachments": 0x15,
+        "Total": 0x16, "DisplayCc": 0x17, "DisplayBcc": 0x18,
+        "GALSearchCriterion": 0x19, "MaxPictures": 0x1A,
+        "MaxSize": 0x1B, "Picture": 0x1C,
+    },
 }
 
 # Real MS-ASWBXML codepage numbers (must match the protocol, not an
@@ -128,6 +141,7 @@ PAGE_INDEX: dict[str, int] = {
     "Settings": 18,
     "ItemOperations": 20,
     "ComposeMail": 21,
+    "Find": 25,
 }
 
 PAGE_ORDER: dict[int, str] = {num: name for name, num in PAGE_INDEX.items()}

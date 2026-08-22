@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from pyactivesync.models import BodyType, Folder, FolderType, SyncItem, SyncResult
+from pyactivesync.models import BodyType, FindItem, FindResult, Folder, FolderType, SyncItem, SyncResult
 
 
 def test_folder_type_values_match_spec() -> None:
@@ -36,3 +36,10 @@ def test_sync_result_defaults_are_empty_and_independent() -> None:
 def test_sync_item_fields_default_empty_dict() -> None:
     item = SyncItem(server_id="1:1")
     assert item.fields == {}
+
+
+def test_find_result_defaults_are_empty_and_independent() -> None:
+    a = FindResult(search_id="a", status="1")
+    b = FindResult(search_id="b", status="1")
+    a.items.append(FindItem(server_id="9:1"))
+    assert b.items == []

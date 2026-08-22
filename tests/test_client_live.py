@@ -160,6 +160,19 @@ def test_search_mailbox_structured_read_only(live_client: Client) -> None:
     assert isinstance(results, list)
 
 
+def test_find_mailbox_free_text_read_only(live_client: Client) -> None:
+    inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
+    result = live_client.find_mailbox("meeting", folder_id=inbox.id)
+    assert result.status == "1"
+    assert isinstance(result.items, list)
+
+
+def test_find_gal_read_only(live_client: Client) -> None:
+    result = live_client.find_gal("Mart")
+    assert result.status == "1"
+    assert isinstance(result.items, list)
+
+
 def test_ping_returns_a_status(live_client: Client) -> None:
     inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
     result = live_client.ping(inbox.id, timeout=10)

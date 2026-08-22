@@ -19,6 +19,7 @@ EXPECTED_PAGE_NUMBERS = {
     "Settings": 18,
     "ItemOperations": 20,
     "ComposeMail": 21,
+    "Find": 25,
 }
 
 

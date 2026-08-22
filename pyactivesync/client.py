@@ -9,10 +9,12 @@ from types import TracebackType
 
 from ._http import Transport
 from ._mime import to_crlf_bytes
-from ._wbxml import Node, WBXMLReader, WBXMLWriter, find, find_all, leaves, text_of, wtag
+from ._wbxml import Node, NodeBuilder, WBXMLReader, WBXMLWriter, find, find_all, leaves, text_of, wtag
 from .exceptions import ProtocolError, ProvisionError, StatusError
 from .models import (
     BodyType,
+    FindItem,
+    FindResult,
     Folder,
     FolderType,
     GalEntry,
@@ -658,6 +660,133 @@ class Client:
         status = text_of(find(nodes, "Search.Status"))
         _check_status("Search", status)
         return [leaves(children) for _, _, children in find_all(nodes, "Search.Result")]
+
+    def find_mailbox(
+        self,
+        query: str,
+        *,
+        folder_id: str | None = None,
+        item_class: str = "Email",
+        range_start: int = 0,
+        max_results: int = 10,
+        deep_traversal: bool = False,
+        search_id: str | None = None,
+    ) -> FindResult:
+        """Free-text mailbox search using the EAS 16.1 ``Find`` command.
+
+        Pass the returned ``search_id`` back with a later ``range_start`` to
+        request another page of the same search. If ``folder_id`` is omitted,
+        Exchange searches all folders; ``deep_traversal`` requests recursive
+        traversal where the server supports it.
+        """
+        if not query.strip():
+            raise ValueError("query must not be empty")
+        query_children = [
+            wtag("Find", "FreeText", text=query),
+            wtag("AirSync", "Class", text=item_class),
+        ]
+        if folder_id is not None:
+            query_children.append(wtag("AirSync", "CollectionId", text=folder_id))
+        return self._find(
+            "MailBoxSearchCriterion",
+            wtag("Find", "Query", children=query_children),
+            range_start=range_start,
+            max_results=max_results,
+            deep_traversal=deep_traversal,
+            search_id=search_id,
+        )
+
+    def find_gal(
+        self,
+        query: str,
+        *,
+        range_start: int = 0,
+        max_results: int = 10,
+        search_id: str | None = None,
+    ) -> FindResult:
+        """Search the Global Address List using the EAS 16.1 ``Find`` command."""
+        if not 4 <= len(query) <= 256:
+            raise ValueError("GAL Find query must contain 4 to 256 characters")
+        return self._find(
+            "GALSearchCriterion",
+            wtag("Find", "Query", text=query),
+            range_start=range_start,
+            max_results=max_results,
+            search_id=search_id,
+        )
+
+    def _find(
+        self,
+        criterion_name: str,
+        query: NodeBuilder,
+        *,
+        range_start: int,
+        max_results: int,
+        deep_traversal: bool = False,
+        search_id: str | None,
+    ) -> FindResult:
+        if range_start < 0:
+            raise ValueError("range_start must be non-negative")
+        if not 1 <= max_results <= 1000 or range_start + max_results > 1000:
+            raise ValueError("requested range must be within 0-999")
+        if search_id is None:
+            search_id = str(uuid.uuid4())
+        else:
+            try:
+                search_id = str(uuid.UUID(search_id))
+            except ValueError as exc:
+                raise ValueError("search_id must be a UUID") from exc
+
+        options = [wtag("Find", "Range", text=f"{range_start}-{range_start + max_results - 1}")]
+        if deep_traversal:
+            options.append(wtag("Find", "DeepTraversal"))
+        self._ensure_provisioned()
+        w = WBXMLWriter()
+        w.tag(
+            "Find",
+            "Find",
+            children=[
+                wtag("Find", "SearchId", text=search_id),
+                wtag(
+                    "Find",
+                    "ExecuteSearch",
+                    children=[
+                        wtag(
+                            "Find",
+                            criterion_name,
+                            children=[query, wtag("Find", "Options", children=options)],
+                        )
+                    ],
+                ),
+            ],
+        )
+        resp = self._post("Find", w.render(), idempotent=True)
+        nodes = WBXMLReader(resp).parse()
+        status = text_of(find(nodes, "Find.Status")) or "1"
+        _check_status("Find", status)
+        response = find(nodes, "Find.Response")
+        if response is None:
+            return FindResult(search_id=search_id, status=status)
+        response_status = text_of(find(response[2], "Find.Status")) or "1"
+        _check_status("Find", response_status)
+        items = []
+        for _, _, children in find_all(response[2], "Find.Result"):
+            properties = find(children, "Find.Properties")
+            items.append(
+                FindItem(
+                    server_id=text_of(find(children, "AirSync.ServerId")),
+                    collection_id=text_of(find(children, "AirSync.CollectionId")),
+                    fields=leaves(properties[2]) if properties is not None else {},
+                )
+            )
+        total_text = text_of(find(response[2], "Find.Total"))
+        return FindResult(
+            search_id=search_id,
+            status=response_status,
+            range=text_of(find(response[2], "Find.Range")),
+            total=int(total_text) if total_text is not None else None,
+            items=items,
+        )
 
     # -- Settings ------------------------------------------------------------------
 

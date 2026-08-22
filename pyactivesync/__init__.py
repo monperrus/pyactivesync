@@ -6,6 +6,8 @@ from .exceptions import EASError, ProtocolError, ProvisionError, StatusError
 from .models import (
     AttachmentInfo,
     BodyType,
+    FindItem,
+    FindResult,
     Folder,
     FolderType,
     GalEntry,
@@ -28,6 +30,8 @@ __all__ = [
     "StatusError",
     "AttachmentInfo",
     "BodyType",
+    "FindItem",
+    "FindResult",
     "Folder",
     "FolderType",
     "GalEntry",

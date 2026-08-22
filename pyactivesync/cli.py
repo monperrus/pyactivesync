@@ -96,7 +96,7 @@ def cmd_send(args: argparse.Namespace) -> None:
 
 def cmd_ping(args: argparse.Namespace) -> None:
     with _client_from_args(args) as client:
-        result = client.ping(args.folder_id, heartbeat=args.heartbeat, timeout=args.timeout)
+        result = client.ping(args.folder_ids, heartbeat=args.heartbeat, timeout=args.timeout)
         _print(result, args.json)
 
 
@@ -129,9 +129,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--body", required=True)
     p.set_defaults(func=cmd_send)
 
-    p = sub.add_parser("ping", help="long-poll one folder for changes")
+    p = sub.add_parser("ping", help="long-poll one or more folders for changes")
     _add_common_args(p)
-    p.add_argument("folder_id")
+    p.add_argument("folder_ids", nargs="+")
     p.add_argument("--heartbeat", type=int, default=60)
     p.add_argument("--timeout", type=float, default=30.0)
     p.set_defaults(func=cmd_ping)

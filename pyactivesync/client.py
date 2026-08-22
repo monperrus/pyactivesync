@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 from email.message import Message
 from types import TracebackType
+from typing import overload
 
 from ._http import Transport
 from ._mime import to_7bit_crlf_text, to_crlf_bytes
@@ -802,14 +803,55 @@ class Client:
 
     # -- Device / connectivity ----------------------------------------------------
 
+    @overload
     def ping(
-        self, folder_id: str, *, folder_class: str = "Email", heartbeat: int = 60, timeout: float | None = None
+        self,
+        folder_ids: str | Iterable[str],
+        *,
+        folder_class: str = "Email",
+        heartbeat: int = 60,
+        timeout: float | None = None,
+    ) -> PingResult: ...
+
+    @overload
+    def ping(
+        self,
+        *,
+        folder_id: str,
+        folder_class: str = "Email",
+        heartbeat: int = 60,
+        timeout: float | None = None,
+    ) -> PingResult: ...
+
+    def ping(
+        self,
+        folder_ids: str | Iterable[str] | None = None,
+        *,
+        folder_id: str | None = None,
+        folder_class: str = "Email",
+        heartbeat: int = 60,
+        timeout: float | None = None,
     ) -> PingResult:
-        """``Ping``: long-poll for changes on one folder.
+        """``Ping``: long-poll for changes on one or more folders.
 
         ``timeout`` bounds the client-side wait; it is independent of
         ``heartbeat`` (the server-side long-poll duration requested).
+
+        A string monitors one folder; an iterable of folder ids monitors the
+        whole set in one request. ``folder_id`` is retained as a keyword-only
+        compatibility alias for the former single-folder API.
         """
+        if folder_ids is not None and folder_id is not None:
+            raise TypeError("pass folder_ids or folder_id, not both")
+        requested = folder_ids if folder_ids is not None else folder_id
+        if requested is None:
+            raise TypeError("missing required folder_ids")
+        requested_folder_ids = [requested] if isinstance(requested, str) else list(requested)
+        if not requested_folder_ids:
+            raise ValueError("at least one folder id is required")
+        if any(not isinstance(item, str) or not item for item in requested_folder_ids):
+            raise ValueError("folder ids must be non-empty strings")
+
         self._ensure_provisioned()
         w = WBXMLWriter()
         w.tag(
@@ -828,7 +870,8 @@ class Client:
                                 wtag("Ping", "Id", text=folder_id),
                                 wtag("Ping", "Class", text=folder_class),
                             ],
-                        ),
+                        )
+                        for folder_id in requested_folder_ids
                     ],
                 ),
             ],
@@ -837,7 +880,9 @@ class Client:
         nodes = WBXMLReader(resp).parse()
         status = text_of(find(nodes, "Ping.Status")) or ""
         changed = [
-            sid for _, _, c in find_all(nodes, "Ping.Folder") if (sid := text_of(find(c, "Ping.Id"))) is not None
+            sid
+            for folder in find_all(nodes, "Ping.Folder")
+            if (sid := text_of(folder)) is not None
         ]
         return PingResult(status=status, changed_folder_ids=changed)
 

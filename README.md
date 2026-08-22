@@ -43,6 +43,9 @@ with Client(
     result = client.sync_folder(inbox.id)                              # bootstrap
     result = client.sync_folder(inbox.id, sync_key=result.sync_key)     # Add/Change/Delete
 
+    ping = client.ping([inbox.id, drafts.id], heartbeat=60)
+    print(ping.changed_folder_ids)
+
     for item in result.added:
         print(item.fields.get("Email.Subject"))
         body = client.fetch_item(inbox.id, item.server_id, body_type=BodyType.HTML)

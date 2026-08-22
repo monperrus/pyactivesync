@@ -244,8 +244,10 @@ def test_find_gal_read_only(live_client: Client) -> None:
 
 
 def test_ping_returns_a_status(live_client: Client) -> None:
-    inbox = next(f for f in live_client.list_folders() if f.type == FolderType.INBOX)
-    result = live_client.ping(inbox.id, timeout=10)
+    folders = live_client.list_folders()
+    inbox = next(f for f in folders if f.type == FolderType.INBOX)
+    drafts = next(f for f in folders if f.type == FolderType.DRAFTS)
+    result = live_client.ping([inbox.id, drafts.id], timeout=10)
     assert result.status
 
 
